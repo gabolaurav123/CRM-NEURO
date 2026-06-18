@@ -4,6 +4,7 @@ import { leadsApi } from '../api/leads';
 import ConfirmModal from '../components/ConfirmModal';
 import LeadTable from '../components/LeadTable';
 import { FUNNEL_STAGES, LEAD_STATUSES, PAYMENT_STATUSES } from '../utils/constants';
+import { formatLeadPhone, formatPhone, isRealPhone, stripWhatsappSuffix } from '../utils/formatPhone';
 
 const initialFilters = {
   q: '',
@@ -85,7 +86,7 @@ export default function Leads() {
     if (pendingAction.action === 'pauseBot') {
       return {
         title: 'Pausar bot',
-        body: `Vas a pausar el bot para ${pendingAction.lead.name || pendingAction.lead.phone || 'este lead'}.`,
+        body: `Vas a pausar el bot para ${pendingAction.lead.name || formatLeadPhone(pendingAction.lead) || 'este lead'}.`,
         label: 'Pausar bot',
         tone: 'danger'
       };
@@ -196,7 +197,10 @@ function Select({ label, value, onChange, options }) {
 function exportCsv(leads) {
   const columns = [
     ['name', 'Nombre'],
-    ['phone', 'Celular'],
+    [(lead) => (isRealPhone(String(lead.phone || '')) ? formatPhone(String(lead.phone)) : ''), 'Telefono real'],
+    [(lead) => stripWhatsappSuffix(lead.whatsapp_id), 'WhatsApp ID'],
+    [(lead) => stripWhatsappSuffix(lead.whatsapp_lid), 'WhatsApp LID'],
+    ['display_phone', 'Display phone'],
     ['email', 'Correo'],
     ['username', 'Usuario'],
     ['main_pain', 'Dolor principal'],
@@ -206,12 +210,13 @@ function exportCsv(leads) {
     ['funnel_stage', 'Etapa'],
     ['main_objection', 'Objecion'],
     ['payment_status', 'Pago'],
+    [(lead) => (lead.hotmart_link_sent ? 'si' : 'no'), 'Hotmart enviado'],
     ['created_at', 'Fecha ingreso'],
     ['last_contact_at', 'Ultimo contacto'],
     ['notes', 'Notas']
   ];
 
-  const rows = [columns.map(([, label]) => label), ...leads.map((lead) => columns.map(([key]) => csvValue(lead[key])))];
+  const rows = [columns.map(([, label]) => label), ...leads.map((lead) => columns.map(([key]) => csvValue(typeof key === 'function' ? key(lead) : lead[key])))];
   const blob = new Blob([rows.map((row) => row.join(',')).join('\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

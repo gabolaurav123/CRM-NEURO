@@ -3,6 +3,7 @@ import { Activity, CheckCircle2, CreditCard, Link2, MessageCircle, ThermometerSu
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { apiRequest } from '../api/client';
 import StatCard from '../components/StatCard';
+import { formatLeadPhone } from '../utils/formatPhone';
 
 const chartColors = ['#0f766e', '#f59e0b', '#dc2626', '#2563eb', '#16a34a', '#64748b', '#ea580c', '#0891b2'];
 
@@ -29,6 +30,11 @@ export default function Dashboard() {
 
   const metrics = data.metrics || {};
   const charts = data.charts || {};
+  const whatsappDisplay = formatLeadPhone({
+    phone: metrics.whatsapp_phone,
+    whatsapp_id: metrics.whatsapp_id,
+    display_phone: metrics.whatsapp_display_phone
+  });
 
   return (
     <div className="space-y-5 pb-24 lg:pb-0">
@@ -47,12 +53,13 @@ export default function Dashboard() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Total leads" value={metrics.total_leads} helper={`${metrics.leads_today || 0} hoy, ${metrics.leads_last_7_days || 0} ultimos 7 dias`} icon={Users} tone="slate" />
         <StatCard label="Leads calientes" value={metrics.leads_caliente} helper={`Tibios: ${metrics.leads_tibio || 0} | Frios: ${metrics.leads_frio || 0}`} icon={ThermometerSun} tone="rose" />
-        <StatCard label="Links enviados" value={metrics.links_sent} helper={`${metrics.payment_link_rate || 0}% avance a link de pago`} icon={Link2} tone="cyan" />
+        <StatCard label="Ofertas presentadas" value={metrics.offers_presented} icon={Link2} tone="cyan" />
+        <StatCard label="Links Hotmart enviados" value={metrics.links_sent} helper={`${metrics.payment_link_rate || 0}% tasa de link enviado`} icon={Link2} tone="cyan" />
         <StatCard label="Pagos confirmados" value={metrics.payments_confirmed} helper={`${metrics.payment_confirmed_rate || 0}% conversion confirmada`} icon={CheckCircle2} tone="emerald" />
         <StatCard label="Pagos pendientes" value={metrics.payments_pending} icon={CreditCard} tone="amber" />
         <StatCard label="Conversaciones activas" value={metrics.active_conversations} helper={`${metrics.human_takeover || 0} con humano`} icon={MessageCircle} tone="teal" />
         <StatCard label="Bot pausado" value={metrics.bot_paused} helper={`Bot global: ${metrics.bot_status || 'enabled'}`} icon={Activity} tone="slate" />
-        <StatCard label="WhatsApp" value={metrics.whatsapp_status || 'disconnected'} helper={metrics.whatsapp_phone || 'Sin numero conectado'} icon={Wifi} tone={metrics.whatsapp_status === 'connected' ? 'emerald' : 'rose'} />
+        <StatCard label="WhatsApp" value={metrics.whatsapp_status || 'disconnected'} helper={whatsappDisplay} icon={Wifi} tone={metrics.whatsapp_status === 'connected' ? 'emerald' : 'rose'} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">

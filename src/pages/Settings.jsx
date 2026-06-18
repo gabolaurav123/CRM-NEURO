@@ -56,7 +56,7 @@ export default function Settings() {
       <div className="rounded-lg border border-line bg-white p-4 shadow-soft">
         <div className="flex items-start gap-3 rounded-lg bg-slate-50 p-3 ring-1 ring-line">
           <ShieldCheck className="mt-0.5 text-emerald-600" size={20} />
-          <p className="text-sm text-slate-600">DATABASE_URL, ADMIN_API_KEY y la API key de Gemini no se muestran ni se editan desde el CRM.</p>
+          <p className="text-sm text-slate-600">Los secretos del backend no se muestran ni se editan desde el CRM.</p>
         </div>
       </div>
 

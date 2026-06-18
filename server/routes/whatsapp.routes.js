@@ -84,6 +84,8 @@ function normalizeWhatsappPayload(payload, fallbackStatus = 'disconnected') {
   return {
     status: data.status || data.connectionStatus || data.state || fallbackStatus,
     phone: data.phone || data.number || data.connectedNumber || '',
+    whatsapp_id: data.whatsapp_id || data.whatsappId || data.id || data.user?.id || '',
+    display_phone: data.display_phone || data.displayPhone || data.displayNumber || '',
     qr: data.qr || data.qrCode || data.qr_code || data.image || '',
     last_qr_at: data.last_qr_at || data.lastQrAt || data.qrGeneratedAt || null,
     last_connected_at: data.last_connected_at || data.lastConnectedAt || data.connectedAt || null,
@@ -94,11 +96,13 @@ function normalizeWhatsappPayload(payload, fallbackStatus = 'disconnected') {
 
 async function storeWhatsappSession(status) {
   await query(
-    `INSERT INTO whatsapp_sessions (status, phone, qr_code, last_qr_at, last_connected_at, updated_at, metadata)
-     VALUES ($1, $2, $3, $4, $5, NOW(), $6)`,
+    `INSERT INTO whatsapp_sessions (status, phone, whatsapp_id, display_phone, qr_code, last_qr_at, last_connected_at, updated_at, metadata)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)`,
     [
       status.status,
       status.phone || null,
+      status.whatsapp_id || null,
+      status.display_phone || null,
       status.qr || null,
       status.last_qr_at || null,
       status.last_connected_at || null,
@@ -109,8 +113,10 @@ async function storeWhatsappSession(status) {
 
 async function getLatestWhatsappSession() {
   const result = await query(
-    `SELECT status,
+      `SELECT status,
             phone,
+            whatsapp_id,
+            display_phone,
             qr_code AS qr,
             last_qr_at,
             last_connected_at,
@@ -123,6 +129,8 @@ async function getLatestWhatsappSession() {
   return result.rows[0] || {
     status: 'disconnected',
     phone: '',
+    whatsapp_id: '',
+    display_phone: '',
     qr: '',
     last_qr_at: null,
     last_connected_at: null,

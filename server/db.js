@@ -12,8 +12,7 @@ let pool;
 export const DEFAULT_SETTINGS = {
   product_name: process.env.PRODUCT_NAME || 'Neurotraumas(TM)',
   product_price: '360',
-  hotmart_link: '',
-  landing_link: '',
+  hotmart_link: process.env.HOTMART_LINK || 'https://pay.hotmart.com/T103515864E',
   gemini_model: 'gemini-1.5-flash',
   gemini_temperature: '0.7',
   gemini_max_output_tokens: '800',
@@ -23,6 +22,14 @@ export const DEFAULT_SETTINGS = {
   followup_payment_2_hours: '24',
   followup_payment_3_hours: '48',
   followup_4_days: '7',
+  followup_payment_1_message:
+    'Hola [NOMBRE], paso por aqui para confirmar algo.\n\nPudiste revisar el enlace de inscripcion?\n\nSi tienes alguna duda antes de tomar la decision, puedo ayudarte a resolverla.',
+  followup_payment_2_message:
+    'Solo quiero preguntarte algo importante:\n\nQue es lo que mas te esta frenando para empezar ahora?',
+  followup_payment_3_message:
+    'A veces uno espera sentirse completamente listo para cambiar.\n\nPero muchas veces la claridad aparece cuando das el primer paso con acompanamiento.\n\nSi todavia quieres avanzar, te dejo nuevamente el acceso oficial:\n\nhttps://pay.hotmart.com/T103515864E',
+  followup_4_message:
+    'Hola [NOMBRE].\n\nNo quiero insistirte, solo cerrar bien esta conversacion.\n\nPor lo que me contaste, esto si parecia importante para ti.\n\nQuieres que dejemos tu proceso en pausa por ahora o todavia te interesa recibir orientacion para entrar a Neurotraumas(TM)?',
   bot_enabled: 'true',
   initial_message: '',
   memory_notice_message: '',
@@ -95,7 +102,14 @@ async function seedDefaultSettings() {
     await query(
       `INSERT INTO bot_settings (key, value, value_type, updated_at)
        VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (key) DO NOTHING`,
+       ON CONFLICT (key)
+       DO UPDATE SET
+         value = CASE
+           WHEN bot_settings.value IS NULL OR bot_settings.value = '' THEN EXCLUDED.value
+           ELSE bot_settings.value
+         END,
+         value_type = EXCLUDED.value_type,
+         updated_at = NOW()`,
       [key, value, inferValueType(value)]
     );
   }

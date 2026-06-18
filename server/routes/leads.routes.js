@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { query, withTransaction } from '../db.js';
 import { createAdminAction } from '../services/adminActions.js';
-import { chatbotRequest, optionalChatbotRequest } from '../services/chatbotClient.js';
+import { assertChatbotSuccess, chatbotRequest, optionalChatbotRequest } from '../services/chatbotClient.js';
+import { sendManualLeadMessage } from '../services/messagesService.js';
 import { getSettings } from '../services/settingsService.js';
+import { requireUuid } from '../utils/ids.js';
 
 const router = Router();
 
@@ -12,8 +14,7 @@ const VALID_FUNNEL_STAGES = [
   'inicio',
   'captacion',
   'diagnostico',
-  'landing_enviada',
-  'video_visto',
+  'datos_solicitados',
   'oferta_presentada',
   'objecion',
   'link_pago_enviado',
@@ -85,7 +86,7 @@ router.get('/', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const leadId = String(req.params.id);
+    const leadId = requireUuid(req.params.id);
     const lead = await query('SELECT * FROM leads WHERE id::TEXT = $1 LIMIT 1', [leadId]);
 
     if (lead.rowCount === 0) {
@@ -99,14 +100,21 @@ router.get('/:id', async (req, res, next) => {
                 from_me, metadata, created_at
          FROM messages
          WHERE lead_id::TEXT = $1
-            OR conversation_id IN (SELECT id::TEXT FROM conversations WHERE lead_id::TEXT = $1)
+            OR conversation_id::TEXT IN (SELECT id::TEXT FROM conversations WHERE lead_id::TEXT = $1)
          ORDER BY created_at ASC
          LIMIT 500`,
         [leadId]
       ),
       query('SELECT * FROM conversation_memory WHERE lead_id::TEXT = $1 LIMIT 1', [leadId]),
       query('SELECT * FROM payments WHERE lead_id::TEXT = $1 ORDER BY created_at DESC NULLS LAST, id DESC', [leadId]),
-      query('SELECT * FROM followups WHERE lead_id::TEXT = $1 ORDER BY scheduled_for ASC NULLS LAST, id DESC LIMIT 100', [leadId])
+      query(
+        `SELECT *, COALESCE(scheduled_for, scheduled_at) AS scheduled_for, COALESCE(scheduled_at, scheduled_for) AS scheduled_at
+         FROM followups
+         WHERE lead_id::TEXT = $1
+         ORDER BY COALESCE(scheduled_for, scheduled_at) ASC NULLS LAST, id DESC
+         LIMIT 100`,
+        [leadId]
+      )
     ]);
 
     res.json({
@@ -123,6 +131,7 @@ router.get('/:id', async (req, res, next) => {
 
 router.patch('/:id', async (req, res, next) => {
   try {
+    const leadId = requireUuid(req.params.id);
     const updates = pickEditableLeadUpdates(req.body || {});
     validateLeadUpdates(updates);
 
@@ -138,7 +147,7 @@ router.patch('/:id', async (req, res, next) => {
       values.push(value);
     });
 
-    values.push(String(req.params.id));
+    values.push(leadId);
     const result = await query(
       `UPDATE leads
        SET ${assignments.join(', ')}, updated_at = NOW()
@@ -152,7 +161,7 @@ router.patch('/:id', async (req, res, next) => {
     }
 
     await createAdminAction({
-      leadId: req.params.id,
+      leadId,
       action: 'lead_updated',
       details: updates,
       adminEmail: req.admin?.email
@@ -166,9 +175,10 @@ router.patch('/:id', async (req, res, next) => {
 
 router.post('/:id/pause-bot', async (req, res, next) => {
   try {
-    const result = await updateLeadFlags(req.params.id, { bot_paused: true, funnel_stage: 'pausado' });
-    const chatbot = await optionalChatbotRequest(`/api/leads/${req.params.id}/pause-bot`, { method: 'POST' });
-    await createAdminAction({ leadId: req.params.id, action: 'bot_paused', adminEmail: req.admin?.email });
+    const leadId = requireUuid(req.params.id);
+    const result = await updateLeadFlags(leadId, { bot_paused: true, funnel_stage: 'pausado' });
+    const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/pause-bot`, { method: 'POST' });
+    await createAdminAction({ leadId, action: 'bot_paused', adminEmail: req.admin?.email });
     res.json({ lead: result, chatbot });
   } catch (error) {
     next(error);
@@ -177,9 +187,10 @@ router.post('/:id/pause-bot', async (req, res, next) => {
 
 router.post('/:id/resume-bot', async (req, res, next) => {
   try {
-    const result = await updateLeadFlags(req.params.id, { bot_paused: false });
-    const chatbot = await optionalChatbotRequest(`/api/leads/${req.params.id}/resume-bot`, { method: 'POST' });
-    await createAdminAction({ leadId: req.params.id, action: 'bot_resumed', adminEmail: req.admin?.email });
+    const leadId = requireUuid(req.params.id);
+    const result = await updateLeadFlags(leadId, { bot_paused: false });
+    const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/resume-bot`, { method: 'POST' });
+    await createAdminAction({ leadId, action: 'bot_resumed', adminEmail: req.admin?.email });
     res.json({ lead: result, chatbot });
   } catch (error) {
     next(error);
@@ -188,9 +199,10 @@ router.post('/:id/resume-bot', async (req, res, next) => {
 
 router.post('/:id/takeover', async (req, res, next) => {
   try {
-    const result = await updateLeadFlags(req.params.id, { human_takeover: true, funnel_stage: 'humano' });
-    const chatbot = await optionalChatbotRequest(`/api/leads/${req.params.id}/takeover`, { method: 'POST' });
-    await createAdminAction({ leadId: req.params.id, action: 'human_takeover_enabled', adminEmail: req.admin?.email });
+    const leadId = requireUuid(req.params.id);
+    const result = await updateLeadFlags(leadId, { human_takeover: true, funnel_stage: 'humano' });
+    const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/takeover`, { method: 'POST' });
+    await createAdminAction({ leadId, action: 'human_takeover_enabled', adminEmail: req.admin?.email });
     res.json({ lead: result, chatbot });
   } catch (error) {
     next(error);
@@ -199,9 +211,10 @@ router.post('/:id/takeover', async (req, res, next) => {
 
 router.post('/:id/release-takeover', async (req, res, next) => {
   try {
-    const result = await updateLeadFlags(req.params.id, { human_takeover: false });
-    const chatbot = await optionalChatbotRequest(`/api/leads/${req.params.id}/release-takeover`, { method: 'POST' });
-    await createAdminAction({ leadId: req.params.id, action: 'human_takeover_released', adminEmail: req.admin?.email });
+    const leadId = requireUuid(req.params.id);
+    const result = await updateLeadFlags(leadId, { human_takeover: false });
+    const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/release-takeover`, { method: 'POST' });
+    await createAdminAction({ leadId, action: 'human_takeover_released', adminEmail: req.admin?.email });
     res.json({ lead: result, chatbot });
   } catch (error) {
     next(error);
@@ -210,9 +223,10 @@ router.post('/:id/release-takeover', async (req, res, next) => {
 
 router.post('/:id/delete-memory', async (req, res, next) => {
   try {
-    await query('DELETE FROM conversation_memory WHERE lead_id::TEXT = $1', [String(req.params.id)]);
-    const chatbot = await optionalChatbotRequest(`/api/leads/${req.params.id}/delete-memory`, { method: 'POST' });
-    await createAdminAction({ leadId: req.params.id, action: 'memory_deleted', adminEmail: req.admin?.email });
+    const leadId = requireUuid(req.params.id);
+    await query('DELETE FROM conversation_memory WHERE lead_id::TEXT = $1', [leadId]);
+    const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/delete-memory`, { method: 'POST' });
+    await createAdminAction({ leadId, action: 'memory_deleted', adminEmail: req.admin?.email });
     res.json({ ok: true, chatbot });
   } catch (error) {
     next(error);
@@ -221,8 +235,9 @@ router.post('/:id/delete-memory', async (req, res, next) => {
 
 router.post('/:id/mark-paid', async (req, res, next) => {
   try {
-    const result = await markLeadPaid(req.params.id, req.admin?.email);
-    const chatbot = await optionalChatbotRequest(`/api/leads/${req.params.id}/mark-paid`, { method: 'POST' });
+    const leadId = requireUuid(req.params.id);
+    const result = await markLeadPaid(leadId, req.admin?.email);
+    const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/mark-paid`, { method: 'POST' });
     res.json({ ...result, chatbot });
   } catch (error) {
     next(error);
@@ -231,24 +246,26 @@ router.post('/:id/mark-paid', async (req, res, next) => {
 
 router.post('/:id/send-hotmart-link', async (req, res, next) => {
   try {
+    const leadId = requireUuid(req.params.id);
     const settings = await getSettings();
     if (!settings.hotmart_link) {
       return res.status(400).json({ error: 'HOTMART_LINK_REQUIRED' });
     }
 
-    const chatbot = await chatbotRequest(`/api/leads/${req.params.id}/send-hotmart-link`, {
+    const chatbot = await chatbotRequest(`/api/leads/${leadId}/send-hotmart-link`, {
       method: 'POST',
       body: { hotmart_link: settings.hotmart_link }
     });
+    assertChatbotSuccess(chatbot, 'Hotmart link was not sent by chatbot');
 
-    const lead = await updateLeadFlags(req.params.id, {
+    const lead = await updateLeadFlags(leadId, {
       hotmart_link_sent: true,
       hotmart_link_sent_at: new Date().toISOString(),
       funnel_stage: 'link_pago_enviado'
     });
 
     await createAdminAction({
-      leadId: req.params.id,
+      leadId,
       action: 'hotmart_link_sent',
       details: { hotmart_link: settings.hotmart_link },
       adminEmail: req.admin?.email
@@ -260,11 +277,25 @@ router.post('/:id/send-hotmart-link', async (req, res, next) => {
   }
 });
 
+router.post('/:id/send-message', async (req, res, next) => {
+  try {
+    const result = await sendManualLeadMessage({
+      leadId: req.params.id,
+      message: req.body?.message,
+      adminEmail: req.admin?.email
+    });
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
 async function updateLeadFlags(leadId, updates) {
+  const id = requireUuid(leadId);
   const entries = Object.entries(updates);
   const assignments = entries.map(([key], index) => `${key} = $${index + 1}`);
   const values = entries.map(([, value]) => value);
-  values.push(String(leadId));
+  values.push(id);
 
   const result = await query(
     `UPDATE leads
@@ -284,6 +315,7 @@ async function updateLeadFlags(leadId, updates) {
 }
 
 async function markLeadPaid(leadId, adminEmail) {
+  const id = requireUuid(leadId);
   return withTransaction(async (client) => {
     const paymentUpdate = await client.query(
       `UPDATE payments
@@ -299,7 +331,7 @@ async function markLeadPaid(leadId, adminEmail) {
          LIMIT 1
        )
        RETURNING *`,
-      [String(leadId)]
+      [id]
     );
 
     let payment = paymentUpdate.rows[0];
@@ -308,7 +340,7 @@ async function markLeadPaid(leadId, adminEmail) {
         `INSERT INTO payments (lead_id, status, manually_confirmed, confirmed_at, created_at, updated_at)
          VALUES ($1, 'confirmed', TRUE, NOW(), NOW(), NOW())
          RETURNING *`,
-        [String(leadId)]
+        [id]
       );
       payment = inserted.rows[0];
     }
@@ -321,7 +353,7 @@ async function markLeadPaid(leadId, adminEmail) {
            updated_at = NOW()
        WHERE id::TEXT = $1
        RETURNING *`,
-      [String(leadId)]
+      [id]
     );
 
     if (leadUpdate.rowCount === 0) {
@@ -333,7 +365,7 @@ async function markLeadPaid(leadId, adminEmail) {
     await client.query(
       `INSERT INTO admin_actions (lead_id, action, details, admin_email, created_at)
        VALUES ($1, 'payment_confirmed', $2, $3, NOW())`,
-      [String(leadId), { payment_id: payment.id }, adminEmail]
+      [id, { payment_id: payment.id }, adminEmail]
     );
 
     return { lead: leadUpdate.rows[0], payment };
@@ -350,10 +382,13 @@ function buildLeadFilters(filters) {
 
   if (filters.q) {
     values.push(`%${String(filters.q).trim()}%`);
-    where.push(`(name ILIKE $${values.length} OR phone ILIKE $${values.length} OR email ILIKE $${values.length} OR username ILIKE $${values.length})`);
+    where.push(`(name ILIKE $${values.length} OR phone ILIKE $${values.length} OR email ILIKE $${values.length} OR username ILIKE $${values.length} OR whatsapp_id ILIKE $${values.length} OR whatsapp_lid ILIKE $${values.length} OR display_phone ILIKE $${values.length})`);
   }
   if (filters.name) add('name ILIKE ?', `%${String(filters.name).trim()}%`);
-  if (filters.phone) add('phone ILIKE ?', `%${String(filters.phone).trim()}%`);
+  if (filters.phone) {
+    values.push(`%${String(filters.phone).trim()}%`);
+    where.push(`(phone ILIKE $${values.length} OR display_phone ILIKE $${values.length} OR whatsapp_id ILIKE $${values.length} OR whatsapp_lid ILIKE $${values.length})`);
+  }
   if (filters.email) add('email ILIKE ?', `%${String(filters.email).trim()}%`);
   if (filters.username) add('username ILIKE ?', `%${String(filters.username).trim()}%`);
   if (filters.lead_status) add('lead_status = ?', String(filters.lead_status));
@@ -379,12 +414,6 @@ function pickEditableLeadUpdates(body) {
 function validateLeadUpdates(updates) {
   if (updates.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(updates.email))) {
     const error = new Error('INVALID_EMAIL');
-    error.status = 400;
-    throw error;
-  }
-
-  if (updates.phone !== undefined && String(updates.phone).trim() === '') {
-    const error = new Error('PHONE_REQUIRED');
     error.status = 400;
     throw error;
   }

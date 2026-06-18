@@ -10,7 +10,7 @@ Copia `.env.example` a `.env` solo en tu entorno local o configura estas variabl
 
 ```env
 DATABASE_URL=
-PORT=3001
+PORT=80
 NODE_ENV=production
 JWT_SECRET=
 ADMIN_EMAIL=
@@ -18,6 +18,7 @@ ADMIN_PASSWORD=
 CHATBOT_API_URL=
 ADMIN_API_KEY=
 PRODUCT_NAME=Neurotraumas(TM)
+HOTMART_LINK=https://pay.hotmart.com/T103515864E
 TIMEZONE=America/La_Paz
 ```
 
@@ -32,6 +33,12 @@ x-admin-api-key: ADMIN_API_KEY
 ```
 
 La API key de Gemini no se muestra, no se guarda y no se edita desde este CRM.
+
+El enlace principal de pago es Hotmart:
+
+```txt
+https://pay.hotmart.com/T103515864E
+```
 
 ## Admin inicial
 
@@ -84,12 +91,14 @@ process.env.PORT || 3001
 
 ## Deploy en Seenode
 
+Runtime: Node.js 20.
+
 1. Sube el repositorio a GitHub.
 2. Crea un servicio en Seenode.
-3. Configura las variables `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CHATBOT_API_URL` y `ADMIN_API_KEY`.
-4. Usa `npm install` para instalar dependencias.
-5. Usa `npm run build` para compilar el frontend.
-6. Usa `npm run start` para iniciar Express.
+3. Configura las variables `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CHATBOT_API_URL`, `ADMIN_API_KEY`, `PRODUCT_NAME` y `TIMEZONE`.
+4. Build command: `npm install && npm run build`.
+5. Start command: `npm start`.
+6. Port: `80`.
 7. Verifica login con el admin.
 8. Verifica conexion con PostgreSQL.
 9. Verifica conexion con el backend del chatbot.
@@ -97,18 +106,20 @@ process.env.PORT || 3001
 
 ## Modulos
 
-- Dashboard: metricas de leads, pagos, conversaciones, objeciones, dolor principal, estado de WhatsApp y estado global del bot.
-- Leads: filtros, busqueda, acciones rapidas, detalle y exportacion CSV.
+- Dashboard: metricas de leads, pagos, conversaciones, objeciones, dolor principal, links Hotmart, estado de WhatsApp y estado global del bot.
+- Leads: filtros, busqueda, acciones rapidas, detalle y exportacion CSV con telefono real, WhatsApp ID, WhatsApp LID y display phone.
 - Detalle de lead: diagnostico, embudo, control de bot, conversacion, envio manual y notas.
-- Conversaciones: historial por lead, filtros operativos y respuesta manual con human takeover.
+- Conversaciones: historial por lead, filtros operativos y envio manual.
 - WhatsApp QR: proxy hacia el chatbot para status, QR, generar QR, reiniciar sesion y logout.
-- Pagos: confirmacion manual, retorno a pendiente, links y acceso a lead/conversacion.
-- Follow-ups: pendientes, enviados, fallidos, cancelacion, reprogramacion y envio inmediato.
-- Configuracion: edicion de `bot_settings` visibles como Hotmart, landing, modelo Gemini, temperatura, tokens, memoria, follow-ups y textos comerciales.
+- Pagos: confirmacion manual, retorno a pendiente, Hotmart y acceso a lead/conversacion.
+- Follow-ups: pendientes, enviados, fallidos, edicion de mensaje, cancelacion, reprogramacion y envio inmediato.
+- Configuracion: edicion de `bot_settings` visibles como Hotmart, modelo Gemini, temperatura, tokens, memoria, follow-ups y textos comerciales.
 
 ## Endpoints principales del CRM
 
 - `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
 - `GET /api/dashboard/metrics`
 - `GET /api/leads`
 - `GET /api/leads/:id`
@@ -120,6 +131,7 @@ process.env.PORT || 3001
 - `POST /api/leads/:id/delete-memory`
 - `POST /api/leads/:id/mark-paid`
 - `POST /api/leads/:id/send-hotmart-link`
+- `POST /api/leads/:id/send-message`
 - `GET /api/conversations`
 - `GET /api/conversations/:leadId`
 - `POST /api/conversations/:leadId/send-message`

@@ -4,13 +4,17 @@ import FunnelStageBadge from './FunnelStageBadge';
 import LeadStatusBadge from './LeadStatusBadge';
 import PaymentStatusBadge from './PaymentStatusBadge';
 import { formatDate } from '../utils/formatDate';
-import { formatPhone } from '../utils/formatPhone';
+import { getLeadPhoneDisplay } from '../utils/formatPhone';
 
 export default function LeadTable({ leads, loading, onAction }) {
   return (
     <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
       <div className="overflow-x-auto">
-        <table className="min-w-[1240px] w-full border-collapse text-left text-sm">
+        <table className="min-w-[1560px] w-full border-collapse text-left text-sm">
+          <colgroup>
+            {Array.from({ length: 12 }).map((_, index) => <col key={index} />)}
+            <col style={{ width: 340 }} />
+          </colgroup>
           <thead className="bg-slate-100 text-xs uppercase tracking-[0.08em] text-slate-500">
             <tr>
               <Th>Nombre</Th>
@@ -25,7 +29,7 @@ export default function LeadTable({ leads, loading, onAction }) {
               <Th>Objecion</Th>
               <Th>Pago</Th>
               <Th>Ultimo contacto</Th>
-              <Th>Acciones</Th>
+              <Th className="sticky right-0 z-20 w-[340px] min-w-[340px] bg-slate-100">Acciones</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -48,7 +52,9 @@ export default function LeadTable({ leads, loading, onAction }) {
                     <div className="font-bold text-slate-900">{lead.name || 'Sin nombre'}</div>
                     <div className="text-xs text-slate-500">{lead.channel || 'canal no definido'}</div>
                   </Td>
-                  <Td>{formatPhone(lead.phone)}</Td>
+                  <Td>
+                    <PhoneCell lead={lead} />
+                  </Td>
                   <Td>{lead.email || '-'}</Td>
                   <Td>{lead.username || '-'}</Td>
                   <Td>{lead.main_pain || '-'}</Td>
@@ -65,25 +71,28 @@ export default function LeadTable({ leads, loading, onAction }) {
                     <PaymentStatusBadge status={lead.payment_status} />
                   </Td>
                   <Td>{formatDate(lead.last_contact_at || lead.updated_at || lead.created_at)}</Td>
-                  <Td>
-                    <div className="grid grid-cols-5 gap-1.5">
-                      <IconLink to={`/leads/${lead.id}`} title="Ver detalle" icon={Eye} />
-                      <IconLink to={`/conversations/${lead.id}`} title="Abrir conversacion" icon={MessageCircle} />
+                  <Td className="sticky right-0 z-10 w-[340px] min-w-[340px] bg-white shadow-[-12px_0_16px_-18px_rgba(15,23,42,0.55)]">
+                    <div className="grid w-[308px] grid-cols-2 gap-2">
+                      <IconLink to={`/leads/${lead.id}`} label="Detalle" title="Ver detalle" icon={Eye} />
+                      <IconLink to={`/conversations/${lead.id}`} label="Chat" title="Abrir conversacion" icon={MessageCircle} />
                       <IconButton
                         title={lead.bot_paused ? 'Reactivar bot' : 'Pausar bot'}
+                        label={lead.bot_paused ? 'Reactivar' : 'Pausar'}
                         icon={lead.bot_paused ? Play : Pause}
                         onClick={() => onAction(lead.bot_paused ? 'resumeBot' : 'pauseBot', lead)}
                       />
                       <IconButton
                         title={lead.human_takeover ? 'Liberar control humano' : 'Tomar control humano'}
+                        label={lead.human_takeover ? 'Liberar' : 'Tomar'}
                         icon={lead.human_takeover ? UserX : UserCheck}
                         onClick={() => onAction(lead.human_takeover ? 'releaseTakeover' : 'takeover', lead)}
                       />
-                      <IconButton title="Reenviar Hotmart" icon={Link2} onClick={() => onAction('sendHotmartLink', lead)} />
-                      <IconButton title="Marcar pago confirmado" icon={CreditCard} onClick={() => onAction('markPaid', lead)} />
-                      <IconButton title="Borrar memoria temporal" icon={Trash2} onClick={() => onAction('deleteMemory', lead)} />
+                      <IconButton title="Reenviar Hotmart" label="Hotmart" icon={Link2} onClick={() => onAction('sendHotmartLink', lead)} />
+                      <IconButton title="Marcar pago confirmado" label="Pago" icon={CreditCard} onClick={() => onAction('markPaid', lead)} />
+                      <IconButton title="Borrar memoria temporal" label="Memoria" icon={Trash2} onClick={() => onAction('deleteMemory', lead)} />
                       <IconButton
                         title={lead.consent_24h ? 'Memoria consentida' : 'Sin consentimiento 24h'}
+                        label="24h"
                         icon={lead.consent_24h ? ShieldCheck : ShieldOff}
                         disabled
                       />
@@ -99,32 +108,44 @@ export default function LeadTable({ leads, loading, onAction }) {
   );
 }
 
-function Th({ children }) {
-  return <th className="whitespace-nowrap px-4 py-3 font-bold">{children}</th>;
+function PhoneCell({ lead }) {
+  const phone = getLeadPhoneDisplay(lead);
+  return (
+    <div>
+      <div className="font-semibold text-slate-800">{phone.value}</div>
+      {phone.helper ? <div className="mt-1 text-xs font-semibold text-slate-500">{phone.helper}</div> : null}
+    </div>
+  );
 }
 
-function Td({ children }) {
-  return <td className="max-w-[220px] px-4 py-3 text-slate-700">{children}</td>;
+function Th({ children, className = '' }) {
+  return <th className={`whitespace-nowrap px-4 py-3 font-bold ${className}`}>{children}</th>;
 }
 
-function IconButton({ title, icon: Icon, onClick, disabled }) {
+function Td({ children, className = '' }) {
+  return <td className={`px-4 py-3 text-slate-700 ${className}`}>{children}</td>;
+}
+
+function IconButton({ title, label, icon: Icon, onClick, disabled }) {
   return (
     <button
       type="button"
       title={title}
       onClick={onClick}
       disabled={disabled}
-      className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-white text-slate-700 hover:bg-slate-100"
+      className="inline-flex h-9 min-w-0 shrink-0 items-center justify-start gap-1.5 rounded-lg border border-line bg-white px-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
     >
-      <Icon size={16} />
+      <Icon size={15} className="shrink-0" />
+      <span className="truncate">{label}</span>
     </button>
   );
 }
 
-function IconLink({ title, icon: Icon, to }) {
+function IconLink({ title, label, icon: Icon, to }) {
   return (
-    <Link title={title} to={to} className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-white text-slate-700 hover:bg-slate-100">
-      <Icon size={16} />
+    <Link title={title} to={to} className="inline-flex h-9 min-w-0 shrink-0 items-center justify-start gap-1.5 rounded-lg border border-line bg-white px-2 text-xs font-bold text-slate-700 hover:bg-slate-100">
+      <Icon size={15} className="shrink-0" />
+      <span className="truncate">{label}</span>
     </Link>
   );
 }

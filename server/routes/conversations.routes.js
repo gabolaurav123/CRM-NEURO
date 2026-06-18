@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { query, withTransaction } from '../db.js';
-import { createAdminAction } from '../services/adminActions.js';
-import { chatbotRequest } from '../services/chatbotClient.js';
+import { query } from '../db.js';
+import { sendManualLeadMessage } from '../services/messagesService.js';
+import { requireUuid } from '../utils/ids.js';
 
 const router = Router();
 
@@ -24,6 +24,9 @@ router.get('/', async (req, res, next) => {
          l.id AS lead_id,
          l.name,
          l.phone,
+         l.whatsapp_id,
+         l.whatsapp_lid,
+         l.display_phone,
          l.email,
          l.lead_status,
          l.funnel_stage,
@@ -50,7 +53,7 @@ router.get('/', async (req, res, next) => {
 
 router.get('/:leadId', async (req, res, next) => {
   try {
-    const leadId = String(req.params.leadId);
+    const leadId = requireUuid(req.params.leadId);
     const lead = await query('SELECT * FROM leads WHERE id::TEXT = $1 LIMIT 1', [leadId]);
 
     if (lead.rowCount === 0) {
@@ -63,7 +66,7 @@ router.get('/:leadId', async (req, res, next) => {
               from_me, metadata, created_at
        FROM messages
        WHERE lead_id::TEXT = $1
-          OR conversation_id IN (SELECT id::TEXT FROM conversations WHERE lead_id::TEXT = $1)
+          OR conversation_id::TEXT IN (SELECT id::TEXT FROM conversations WHERE lead_id::TEXT = $1)
        ORDER BY created_at ASC
        LIMIT 500`,
       [leadId]
@@ -77,46 +80,12 @@ router.get('/:leadId', async (req, res, next) => {
 
 router.post('/:leadId/send-message', async (req, res, next) => {
   try {
-    const leadId = String(req.params.leadId);
-    const message = String(req.body?.message || '').trim();
-
-    if (!message) {
-      return res.status(400).json({ error: 'MESSAGE_REQUIRED' });
-    }
-
-    const chatbot = await chatbotRequest(`/api/conversations/${leadId}/send-message`, {
-      method: 'POST',
-      body: { message }
+    const result = await sendManualLeadMessage({
+      leadId: req.params.leadId,
+      message: req.body?.message,
+      adminEmail: req.admin?.email
     });
-
-    const result = await withTransaction(async (client) => {
-      const inserted = await client.query(
-        `INSERT INTO messages (lead_id, direction, role, body, from_me, metadata, created_at)
-         VALUES ($1, 'outbound', 'admin', $2, TRUE, $3, NOW())
-         RETURNING id, lead_id, conversation_id, direction, role, body, from_me, metadata, created_at`,
-        [leadId, message, { source: 'crm' }]
-      );
-
-      const lead = await client.query(
-        `UPDATE leads
-         SET last_bot_message = $2,
-             last_contact_at = NOW(),
-             updated_at = NOW()
-         WHERE id::TEXT = $1
-         RETURNING *`,
-        [leadId, message]
-      );
-
-      await client.query(
-        `INSERT INTO admin_actions (lead_id, action, details, admin_email, created_at)
-         VALUES ($1, 'manual_message_sent', $2, $3, NOW())`,
-        [leadId, { message }, req.admin?.email]
-      );
-
-      return { message: inserted.rows[0], lead: lead.rows[0] };
-    });
-
-    res.json({ ...result, chatbot });
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -152,7 +121,7 @@ function buildConversationFilters(filters) {
 
   if (filters.q) {
     values.push(`%${String(filters.q).trim()}%`);
-    where.push(`(l.name ILIKE $${values.length} OR l.phone ILIKE $${values.length} OR l.email ILIKE $${values.length})`);
+    where.push(`(l.name ILIKE $${values.length} OR l.phone ILIKE $${values.length} OR l.email ILIKE $${values.length} OR l.username ILIKE $${values.length} OR l.whatsapp_id ILIKE $${values.length} OR l.whatsapp_lid ILIKE $${values.length} OR l.display_phone ILIKE $${values.length})`);
   }
 
   return {

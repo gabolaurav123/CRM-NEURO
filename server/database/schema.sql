@@ -1,5 +1,7 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE IF NOT EXISTS leads (
-  id BIGSERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   first_contact_at TIMESTAMPTZ,
@@ -7,6 +9,8 @@ CREATE TABLE IF NOT EXISTS leads (
   channel TEXT,
   phone TEXT,
   whatsapp_id TEXT,
+  whatsapp_lid TEXT,
+  display_phone TEXT,
   name TEXT,
   email TEXT,
   username TEXT,
@@ -39,6 +43,8 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_contact_at TIMESTAMPTZ;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS channel TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS whatsapp_id TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS whatsapp_lid TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS display_phone TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS email TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS username TEXT;
@@ -135,6 +141,8 @@ CREATE TABLE IF NOT EXISTS whatsapp_sessions (
   id BIGSERIAL PRIMARY KEY,
   status TEXT DEFAULT 'disconnected',
   phone TEXT,
+  whatsapp_id TEXT,
+  display_phone TEXT,
   qr_code TEXT,
   last_qr_at TIMESTAMPTZ,
   last_connected_at TIMESTAMPTZ,
@@ -144,6 +152,8 @@ CREATE TABLE IF NOT EXISTS whatsapp_sessions (
 
 ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'disconnected';
 ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS whatsapp_id TEXT;
+ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS display_phone TEXT;
 ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS qr_code TEXT;
 ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS last_qr_at TIMESTAMPTZ;
 ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS last_connected_at TIMESTAMPTZ;
@@ -156,7 +166,7 @@ CREATE TABLE IF NOT EXISTS payments (
   status TEXT DEFAULT 'pending',
   amount NUMERIC(12, 2),
   currency TEXT DEFAULT 'USD',
-  provider TEXT,
+  provider TEXT DEFAULT 'Hotmart',
   link TEXT,
   reported_by_user BOOLEAN DEFAULT FALSE,
   manually_confirmed BOOLEAN DEFAULT FALSE,
@@ -169,7 +179,7 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS lead_id TEXT;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS amount NUMERIC(12, 2);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'USD';
-ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider TEXT DEFAULT 'Hotmart';
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS link TEXT;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS reported_by_user BOOLEAN DEFAULT FALSE;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS manually_confirmed BOOLEAN DEFAULT FALSE;
@@ -183,6 +193,7 @@ CREATE TABLE IF NOT EXISTS followups (
   type TEXT,
   message TEXT,
   scheduled_for TIMESTAMPTZ,
+  scheduled_at TIMESTAMPTZ,
   sent_at TIMESTAMPTZ,
   status TEXT DEFAULT 'pending',
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -193,6 +204,7 @@ ALTER TABLE followups ADD COLUMN IF NOT EXISTS lead_id TEXT;
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS type TEXT;
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS message TEXT;
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS scheduled_for TIMESTAMPTZ;
+ALTER TABLE followups ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ;
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ;
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();

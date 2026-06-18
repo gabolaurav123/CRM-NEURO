@@ -11,8 +11,12 @@ router.get('/', async (req, res, next) => {
     const result = await query(
       `SELECT
          p.*,
+         COALESCE(NULLIF(p.provider, ''), 'Hotmart') AS provider,
          l.name AS lead_name,
          l.phone AS lead_phone,
+         l.whatsapp_id AS lead_whatsapp_id,
+         l.whatsapp_lid AS lead_whatsapp_lid,
+         l.display_phone AS lead_display_phone,
          l.email AS lead_email,
          l.lead_status,
          l.payment_status AS lead_payment_status
@@ -162,7 +166,7 @@ function buildPaymentFilters(filters) {
 
   if (filters.q) {
     values.push(`%${String(filters.q).trim()}%`);
-    where.push(`(l.name ILIKE $${values.length} OR l.phone ILIKE $${values.length} OR p.provider ILIKE $${values.length})`);
+    where.push(`(l.name ILIKE $${values.length} OR l.phone ILIKE $${values.length} OR l.whatsapp_id ILIKE $${values.length} OR l.whatsapp_lid ILIKE $${values.length} OR l.display_phone ILIKE $${values.length} OR p.provider ILIKE $${values.length})`);
   }
 
   return {

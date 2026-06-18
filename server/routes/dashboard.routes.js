@@ -16,6 +16,7 @@ router.get('/metrics', async (req, res, next) => {
             COUNT(*) FILTER (WHERE lead_status = 'frio')::INT AS leads_frio,
             COUNT(*) FILTER (WHERE lead_status = 'tibio')::INT AS leads_tibio,
             COUNT(*) FILTER (WHERE lead_status = 'caliente')::INT AS leads_caliente,
+            COUNT(*) FILTER (WHERE funnel_stage = 'oferta_presentada')::INT AS offers_presented,
             COUNT(*) FILTER (WHERE hotmart_link_sent = TRUE)::INT AS links_sent,
             COUNT(*) FILTER (WHERE payment_status IN ('pendiente', 'pending'))::INT AS payments_pending,
             COUNT(*) FILTER (WHERE payment_status IN ('pagado', 'confirmed'))::INT AS payments_confirmed,
@@ -64,13 +65,26 @@ router.get('/metrics', async (req, res, next) => {
           LIMIT 8
         `),
         query(`
-          SELECT COALESCE(funnel_stage, 'inicio') AS label, COUNT(*)::INT AS total
-          FROM leads
-          GROUP BY COALESCE(funnel_stage, 'inicio')
-          ORDER BY total DESC
+          WITH stages(label, sort_order) AS (
+            VALUES
+              ('inicio', 1),
+              ('captacion', 2),
+              ('diagnostico', 3),
+              ('datos_solicitados', 4),
+              ('oferta_presentada', 5),
+              ('objecion', 6),
+              ('link_pago_enviado', 7),
+              ('pago_reportado', 8),
+              ('onboarding', 9)
+          )
+          SELECT stages.label, COUNT(leads.id)::INT AS total
+          FROM stages
+          LEFT JOIN leads ON leads.funnel_stage = stages.label
+          GROUP BY stages.label, stages.sort_order
+          ORDER BY stages.sort_order
         `),
         query(`
-          SELECT status, phone, last_connected_at, last_qr_at, updated_at
+          SELECT status, phone, whatsapp_id, display_phone, last_connected_at, last_qr_at, updated_at
           FROM whatsapp_sessions
           ORDER BY updated_at DESC NULLS LAST, id DESC
           LIMIT 1
@@ -96,6 +110,8 @@ router.get('/metrics', async (req, res, next) => {
         common_pain: commonPain.rows[0]?.label || 'Sin datos',
         whatsapp_status: whatsapp.rows[0]?.status || 'disconnected',
         whatsapp_phone: whatsapp.rows[0]?.phone || '',
+        whatsapp_id: whatsapp.rows[0]?.whatsapp_id || '',
+        whatsapp_display_phone: whatsapp.rows[0]?.display_phone || '',
         bot_status: settings.bot_enabled === 'false' ? 'disabled' : 'enabled'
       },
       charts: {

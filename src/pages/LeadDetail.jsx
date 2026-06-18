@@ -10,7 +10,8 @@ import MessageBubble from '../components/MessageBubble';
 import PaymentStatusBadge from '../components/PaymentStatusBadge';
 import { FUNNEL_STAGES, LEAD_STATUSES, PAYMENT_STATUSES } from '../utils/constants';
 import { formatDate } from '../utils/formatDate';
-import { formatPhone } from '../utils/formatPhone';
+import { formatLeadPhone, getLeadPhoneDisplay, stripWhatsappSuffix } from '../utils/formatPhone';
+import { isUuid } from '../utils/ids';
 
 const editableKeys = ['name', 'phone', 'email', 'username', 'main_pain', 'urgency', 'lead_score', 'lead_status', 'funnel_stage', 'main_objection', 'payment_status'];
 
@@ -31,6 +32,13 @@ export default function LeadDetail() {
   async function load() {
     setLoading(true);
     setError('');
+    if (!isUuid(id)) {
+      setPayload({ lead: null, messages: [], memory: null, payments: [], followups: [] });
+      setError('Error al cargar lead: ID invalido.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const data = await leadsApi.get(id);
       setPayload(data);
@@ -109,6 +117,8 @@ export default function LeadDetail() {
   }
 
   const lead = payload.lead;
+  const phoneDisplay = getLeadPhoneDisplay(lead || {});
+  const realPhone = phoneDisplay.kind === 'phone' ? phoneDisplay.value : 'Sin numero';
   const memoryExpiresAt = lead?.memory_expires_at || payload.memory?.expires_at;
   const memoryActive = memoryExpiresAt ? new Date(memoryExpiresAt).getTime() > Date.now() : false;
   const confirmCopy = useMemo(() => {
@@ -118,6 +128,18 @@ export default function LeadDetail() {
   }, [pendingAction]);
 
   if (loading) return <div className="rounded-lg border border-line bg-white p-5 shadow-soft">Cargando lead...</div>;
+  if (!lead) {
+    return (
+      <div className="space-y-5 pb-24 lg:pb-0">
+        <Link to="/leads" className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-ink">
+          <ArrowLeft size={16} /> Volver a leads
+        </Link>
+        <div className="rounded-lg border border-line bg-white p-5 text-sm text-slate-600 shadow-soft">
+          {error || 'Lead no encontrado.'}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 pb-24 lg:pb-0">
@@ -127,7 +149,7 @@ export default function LeadDetail() {
             <ArrowLeft size={16} /> Volver a leads
           </Link>
           <h1 className="mt-2 text-2xl font-bold text-ink">{lead?.name || 'Lead sin nombre'}</h1>
-          <p className="mt-1 text-sm text-slate-500">{formatPhone(lead?.phone)} | {lead?.email || 'Sin correo'}</p>
+          <p className="mt-1 text-sm text-slate-500">{formatLeadPhone(lead || {})} | {lead?.email || 'Sin correo'}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <LeadStatusBadge status={lead?.lead_status} />
@@ -144,7 +166,10 @@ export default function LeadDetail() {
             <InfoGrid
               items={[
                 ['Nombre', lead?.name],
-                ['Telefono', formatPhone(lead?.phone)],
+                ['Telefono real', realPhone],
+                ['WhatsApp ID', stripWhatsappSuffix(lead?.whatsapp_id)],
+                ['WhatsApp LID', stripWhatsappSuffix(lead?.whatsapp_lid)],
+                ['Display phone', lead?.display_phone || formatLeadPhone(lead || {})],
                 ['Correo', lead?.email],
                 ['Usuario', lead?.username],
                 ['Canal', lead?.channel],
@@ -186,22 +211,20 @@ export default function LeadDetail() {
               {payload.messages.length ? (
                 payload.messages.map((message) => <MessageBubble key={message.id} message={message} />)
               ) : (
-                <p className="text-sm text-slate-500">No hay mensajes para este lead.</p>
+                <p className="text-sm text-slate-500">Aun no hay mensajes registrados para este lead.</p>
               )}
             </div>
-            {lead?.human_takeover ? (
-              <form onSubmit={sendManualMessage} className="mt-4 flex gap-3">
-                <textarea
-                  value={manualMessage}
-                  onChange={(event) => setManualMessage(event.target.value)}
-                  className="min-h-[88px] flex-1 rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand-500"
-                  placeholder="Mensaje manual por WhatsApp"
-                />
-                <button type="submit" disabled={saving} className="inline-flex h-[88px] items-center gap-2 rounded-lg bg-teal-600 px-4 text-sm font-bold text-white hover:bg-teal-700">
-                  <Send size={16} /> Enviar
-                </button>
-              </form>
-            ) : null}
+            <form onSubmit={sendManualMessage} className="mt-4 flex gap-3">
+              <textarea
+                value={manualMessage}
+                onChange={(event) => setManualMessage(event.target.value)}
+                className="min-h-[88px] flex-1 rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand-500"
+                placeholder="Mensaje manual por WhatsApp"
+              />
+              <button type="submit" disabled={saving || !manualMessage.trim()} className="inline-flex h-[88px] items-center gap-2 rounded-lg bg-teal-600 px-4 text-sm font-bold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-300">
+                <Send size={16} /> Enviar mensaje
+              </button>
+            </form>
           </Section>
         </div>
 
@@ -211,6 +234,7 @@ export default function LeadDetail() {
               <TextInput label="Nombre" value={form.name} onChange={(value) => setFormValue('name', value, setForm)} />
               <TextInput label="Telefono" value={form.phone} onChange={(value) => setFormValue('phone', value, setForm)} />
               <TextInput label="Correo" value={form.email} onChange={(value) => setFormValue('email', value, setForm)} />
+              <TextInput label="Usuario" value={form.username} onChange={(value) => setFormValue('username', value, setForm)} />
               <TextInput label="Dolor principal" value={form.main_pain} onChange={(value) => setFormValue('main_pain', value, setForm)} />
               <div className="grid grid-cols-2 gap-3">
                 <TextInput label="Urgencia" type="number" value={form.urgency} onChange={(value) => setFormValue('urgency', value, setForm)} />

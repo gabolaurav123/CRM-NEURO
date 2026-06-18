@@ -7,7 +7,8 @@ import ConfirmModal from '../components/ConfirmModal';
 import LeadStatusBadge from '../components/LeadStatusBadge';
 import MessageBubble from '../components/MessageBubble';
 import { formatDate } from '../utils/formatDate';
-import { formatPhone } from '../utils/formatPhone';
+import { formatLeadPhone, getLeadPhoneDisplay } from '../utils/formatPhone';
+import { isUuid } from '../utils/ids';
 
 export default function Conversations() {
   const { leadId } = useParams();
@@ -43,6 +44,12 @@ export default function Conversations() {
 
   async function loadConversation(id) {
     setError('');
+    if (!isUuid(id)) {
+      setSelected({ lead: null, messages: [] });
+      setError('Error al cargar conversacion: ID invalido.');
+      return;
+    }
+
     try {
       const payload = await conversationsApi.get(id);
       setSelected(payload);
@@ -54,6 +61,10 @@ export default function Conversations() {
   async function sendMessage(event) {
     event.preventDefault();
     if (!message.trim() || !leadId) return;
+    if (!isUuid(leadId)) {
+      setError('Error al enviar mensaje: ID invalido.');
+      return;
+    }
     setError('');
     try {
       await conversationsApi.sendMessage(leadId, message.trim());
@@ -97,7 +108,7 @@ export default function Conversations() {
             className="border-b border-line p-4"
           >
             <div className="grid gap-3">
-              <input value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Buscar lead o telefono" className="h-10 rounded-lg border border-line bg-slate-50 px-3 text-sm outline-none" />
+              <input value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Buscar lead, telefono o WhatsApp ID" className="h-10 rounded-lg border border-line bg-slate-50 px-3 text-sm outline-none" />
               <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="h-10 rounded-lg border border-line bg-slate-50 px-3 text-sm outline-none">
                 <option value="">Todas</option>
                 <option value="active">Activas</option>
@@ -121,7 +132,7 @@ export default function Conversations() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-bold text-slate-900">{item.name || 'Sin nombre'}</p>
-                    <p className="text-xs text-slate-500">{formatPhone(item.phone)}</p>
+                    <PhoneText lead={item} />
                   </div>
                   <LeadStatusBadge status={item.lead_status} />
                 </div>
@@ -138,7 +149,7 @@ export default function Conversations() {
               <div className="flex flex-wrap items-start justify-between gap-4 border-b border-line p-4">
                 <div>
                   <h2 className="text-xl font-bold text-ink">{selected.lead.name || 'Sin nombre'}</h2>
-                  <p className="text-sm text-slate-500">{formatPhone(selected.lead.phone)} | {selected.lead.email || 'Sin correo'}</p>
+                  <p className="text-sm text-slate-500">{formatLeadPhone(selected.lead)} | {selected.lead.email || 'Sin correo'}</p>
                   <Link to={`/leads/${selected.lead.id}`} className="mt-2 inline-block text-sm font-bold text-brand-700 hover:text-brand-600">
                     Abrir lead
                   </Link>
@@ -152,13 +163,13 @@ export default function Conversations() {
               </div>
 
               <div className="max-h-[610px] space-y-3 overflow-y-auto bg-slate-100 p-4 scrollbar-thin">
-                {selected.messages.length ? selected.messages.map((item) => <MessageBubble key={item.id} message={item} />) : <p className="text-sm text-slate-500">Sin mensajes.</p>}
+                {selected.messages.length ? selected.messages.map((item) => <MessageBubble key={item.id} message={item} />) : <p className="text-sm text-slate-500">Aun no hay mensajes registrados para este lead.</p>}
               </div>
 
               <form onSubmit={sendMessage} className="flex gap-3 border-t border-line p-4">
-                <textarea value={message} onChange={(event) => setMessage(event.target.value)} disabled={!selected.lead.human_takeover} className="min-h-[86px] flex-1 rounded-lg border border-line bg-slate-50 px-3 py-2 text-sm outline-none disabled:bg-slate-100" placeholder={selected.lead.human_takeover ? 'Mensaje manual por WhatsApp' : 'Activa human takeover para responder manualmente'} />
-                <button type="submit" disabled={!selected.lead.human_takeover || !message.trim()} className="inline-flex h-[86px] items-center gap-2 rounded-lg bg-teal-600 px-4 text-sm font-bold text-white hover:bg-teal-700">
-                  <Send size={16} /> Enviar
+                <textarea value={message} onChange={(event) => setMessage(event.target.value)} className="min-h-[86px] flex-1 rounded-lg border border-line bg-slate-50 px-3 py-2 text-sm outline-none" placeholder="Mensaje manual por WhatsApp" />
+                <button type="submit" disabled={!message.trim()} className="inline-flex h-[86px] items-center gap-2 rounded-lg bg-teal-600 px-4 text-sm font-bold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-300">
+                  <Send size={16} /> Enviar mensaje
                 </button>
               </form>
             </>
@@ -186,5 +197,15 @@ function ActionIcon({ icon: Icon, label, onClick }) {
     <button onClick={onClick} className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
       <Icon size={16} /> {label}
     </button>
+  );
+}
+
+function PhoneText({ lead }) {
+  const phone = getLeadPhoneDisplay(lead);
+  return (
+    <div>
+      <p className="text-xs text-slate-500">{phone.value}</p>
+      {phone.helper ? <p className="text-[11px] font-semibold text-slate-400">{phone.helper}</p> : null}
+    </div>
   );
 }

@@ -49,6 +49,15 @@ export async function optionalChatbotRequest(path, options = {}) {
   }
 }
 
+export function assertChatbotSuccess(payload, fallbackMessage = 'Chatbot did not confirm delivery') {
+  const data = payload?.data || payload || {};
+  const failed = data.ok === false || data.success === false || data.sent === false || data.delivered === false;
+
+  if (failed) {
+    throw new ChatbotClientError(data.error || data.message || fallbackMessage, 502, payload);
+  }
+}
+
 function normalizeBaseUrl(value) {
   if (!value) return '';
   return value.replace(/\/+$/, '');

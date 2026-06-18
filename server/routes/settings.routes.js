@@ -21,10 +21,6 @@ router.patch('/', async (req, res, next) => {
       return res.status(400).json({ error: 'INVALID_HOTMART_LINK' });
     }
 
-    if (values.landing_link !== undefined && typeof values.landing_link !== 'string') {
-      return res.status(400).json({ error: 'INVALID_LANDING_LINK' });
-    }
-
     const settings = await updateSettings(values);
     res.json({ settings });
   } catch (error) {

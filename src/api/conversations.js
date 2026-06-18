@@ -4,7 +4,7 @@ export const conversationsApi = {
   list: (filters) => apiRequest(`/conversations${buildQuery(filters)}`),
   get: (leadId) => apiRequest(`/conversations/${leadId}`),
   sendMessage: (leadId, message) =>
-    apiRequest(`/conversations/${leadId}/send-message`, {
+    apiRequest(`/leads/${leadId}/send-message`, {
       method: 'POST',
       body: { message }
     })

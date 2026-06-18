@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { query, withTransaction } from '../db.js';
-import { chatbotRequest } from '../services/chatbotClient.js';
+import { assertChatbotSuccess, chatbotRequest } from '../services/chatbotClient.js';
 
 const router = Router();
 const VALID_FOLLOWUP_STATUSES = ['pending', 'sent', 'cancelled', 'failed'];
@@ -11,14 +11,19 @@ router.get('/', async (req, res, next) => {
     const result = await query(
       `SELECT
          f.*,
+         COALESCE(f.scheduled_for, f.scheduled_at) AS scheduled_for,
+         COALESCE(f.scheduled_at, f.scheduled_for) AS scheduled_at,
          l.name AS lead_name,
          l.phone AS lead_phone,
+         l.whatsapp_id AS lead_whatsapp_id,
+         l.whatsapp_lid AS lead_whatsapp_lid,
+         l.display_phone AS lead_display_phone,
          l.email AS lead_email,
          l.lead_status
        FROM followups f
        LEFT JOIN leads l ON f.lead_id::TEXT = l.id::TEXT
        ${whereSql}
-       ORDER BY COALESCE(f.scheduled_for, f.created_at) ASC NULLS LAST, f.id DESC
+       ORDER BY COALESCE(f.scheduled_for, f.scheduled_at, f.created_at) ASC NULLS LAST, f.id DESC
        LIMIT 250`,
       values
     );
@@ -46,6 +51,7 @@ router.post('/:id/send-now', async (req, res, next) => {
     }
 
     const chatbot = await chatbotRequest(`/api/followups/${req.params.id}/send-now`, { method: 'POST' });
+    assertChatbotSuccess(chatbot, 'Follow-up was not sent by chatbot');
     const result = await updateFollowup(req.params.id, { status: 'sent', sent_at: new Date().toISOString() }, req.admin?.email);
 
     res.json({ ...result, chatbot });
@@ -55,8 +61,15 @@ router.post('/:id/send-now', async (req, res, next) => {
 });
 
 async function updateFollowup(followupId, body, adminEmail) {
-  const editable = ['status', 'scheduled_for', 'sent_at', 'message', 'type'];
+  const editable = ['status', 'scheduled_for', 'scheduled_at', 'sent_at', 'message', 'type'];
   const updates = Object.fromEntries(Object.entries(body).filter(([key]) => editable.includes(key)));
+
+  if (updates.scheduled_at !== undefined && updates.scheduled_for === undefined) {
+    updates.scheduled_for = updates.scheduled_at;
+  }
+  if (updates.scheduled_for !== undefined && updates.scheduled_at === undefined) {
+    updates.scheduled_at = updates.scheduled_for;
+  }
 
   if (updates.status && !VALID_FOLLOWUP_STATUSES.includes(updates.status)) {
     const error = new Error('INVALID_FOLLOWUP_STATUS');
@@ -124,17 +137,17 @@ function buildFollowupFilters(filters) {
 
   if (filters.date_from) {
     values.push(String(filters.date_from));
-    where.push(`f.scheduled_for >= $${values.length}`);
+    where.push(`COALESCE(f.scheduled_for, f.scheduled_at) >= $${values.length}`);
   }
 
   if (filters.date_to) {
     values.push(String(filters.date_to));
-    where.push(`f.scheduled_for <= $${values.length}`);
+    where.push(`COALESCE(f.scheduled_for, f.scheduled_at) <= $${values.length}`);
   }
 
   if (filters.q) {
     values.push(`%${String(filters.q).trim()}%`);
-    where.push(`(l.name ILIKE $${values.length} OR l.phone ILIKE $${values.length} OR f.message ILIKE $${values.length})`);
+    where.push(`(l.name ILIKE $${values.length} OR l.phone ILIKE $${values.length} OR l.whatsapp_id ILIKE $${values.length} OR l.whatsapp_lid ILIKE $${values.length} OR l.display_phone ILIKE $${values.length} OR f.message ILIKE $${values.length})`);
   }
 
   return {

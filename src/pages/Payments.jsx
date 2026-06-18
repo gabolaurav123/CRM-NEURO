@@ -7,7 +7,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import PaymentStatusBadge from '../components/PaymentStatusBadge';
 import { PAYMENT_STATUSES } from '../utils/constants';
 import { formatDate } from '../utils/formatDate';
-import { formatPhone } from '../utils/formatPhone';
+import { getLeadPhoneDisplay } from '../utils/formatPhone';
 
 export default function Payments() {
   const [filters, setFilters] = useState({ status: '', q: '' });
@@ -88,7 +88,7 @@ export default function Payments() {
             <thead className="bg-slate-100 text-xs uppercase tracking-[0.08em] text-slate-500">
               <tr>
                 <Th>Lead</Th>
-                <Th>Telefono</Th>
+                <Th>Telefono / WhatsApp ID</Th>
                 <Th>Estado</Th>
                 <Th>Monto</Th>
                 <Th>Moneda</Th>
@@ -113,11 +113,11 @@ export default function Payments() {
                 payments.map((payment) => (
                   <tr key={payment.id} className="hover:bg-slate-50">
                     <Td>{payment.lead_name || 'Sin lead'}</Td>
-                    <Td>{formatPhone(payment.lead_phone)}</Td>
+                    <Td><PhoneCell payment={payment} /></Td>
                     <Td><PaymentStatusBadge status={payment.status} /></Td>
                     <Td>{payment.amount ?? '-'}</Td>
                     <Td>{payment.currency || '-'}</Td>
-                    <Td>{payment.provider || '-'}</Td>
+                    <Td>{payment.provider || 'Hotmart'}</Td>
                     <Td>{payment.link ? <a href={payment.link} target="_blank" rel="noreferrer" className="font-bold text-brand-700">Abrir</a> : '-'}</Td>
                     <Td>{payment.reported_by_user ? 'si' : 'no'}</Td>
                     <Td>{payment.manually_confirmed ? 'si' : 'no'}</Td>
@@ -158,6 +158,22 @@ function Th({ children }) {
 
 function Td({ children }) {
   return <td className="px-4 py-3 text-slate-700">{children}</td>;
+}
+
+function PhoneCell({ payment }) {
+  const phone = getLeadPhoneDisplay({
+    phone: payment.lead_phone,
+    whatsapp_id: payment.lead_whatsapp_id,
+    whatsapp_lid: payment.lead_whatsapp_lid,
+    display_phone: payment.lead_display_phone
+  });
+
+  return (
+    <div>
+      <div className="font-semibold text-slate-800">{phone.value}</div>
+      {phone.helper ? <div className="mt-1 text-xs font-semibold text-slate-500">{phone.helper}</div> : null}
+    </div>
+  );
 }
 
 function IconButton({ icon: Icon, label, onClick }) {
