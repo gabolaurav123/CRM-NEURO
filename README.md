@@ -1,0 +1,159 @@
+# CRM Neurotraumas
+
+CRM web privado para administrar leads, conversaciones, pagos, follow-ups, configuracion visible del bot y vinculacion de WhatsApp por QR para el chatbot Neurotraumas(TM).
+
+El CRM usa React + Vite + TailwindCSS en frontend y Express + PostgreSQL en backend. Express sirve el `dist` generado por Vite en produccion.
+
+## Variables de entorno
+
+Copia `.env.example` a `.env` solo en tu entorno local o configura estas variables directamente en Seenode:
+
+```env
+DATABASE_URL=
+PORT=3001
+NODE_ENV=production
+JWT_SECRET=
+ADMIN_EMAIL=
+ADMIN_PASSWORD=
+CHATBOT_API_URL=
+ADMIN_API_KEY=
+PRODUCT_NAME=Neurotraumas(TM)
+TIMEZONE=America/La_Paz
+```
+
+No subas `.env` a GitHub. El archivo ya esta ignorado por `.gitignore`.
+
+`DATABASE_URL` es la unica fuente de conexion a PostgreSQL. El frontend no recibe esa URL.
+
+`CHATBOT_API_URL` y `ADMIN_API_KEY` se usan solo en el backend del CRM para llamar al chatbot con el header:
+
+```http
+x-admin-api-key: ADMIN_API_KEY
+```
+
+La API key de Gemini no se muestra, no se guarda y no se edita desde este CRM.
+
+## Admin inicial
+
+Configura:
+
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD`
+- `JWT_SECRET`
+
+`ADMIN_PASSWORD` puede ser una clave normal configurada como variable de entorno o un hash bcrypt. Para mayor seguridad en produccion, usa un hash bcrypt como valor de `ADMIN_PASSWORD`.
+
+## Base de datos compartida
+
+El CRM lee y edita las tablas compartidas con `CHATBOT-NEURO`:
+
+- `leads`
+- `conversations`
+- `messages`
+- `conversation_memory`
+- `bot_settings`
+- `whatsapp_sessions`
+- `payments`
+- `followups`
+- `admin_actions`
+
+`server/database/schema.sql` contiene migraciones idempotentes con `CREATE TABLE IF NOT EXISTS` y `ADD COLUMN IF NOT EXISTS`. No crea credenciales ni secretos.
+
+## Desarrollo local
+
+```bash
+npm install
+npm run dev
+```
+
+Vite corre en `http://localhost:5173` y proxya `/api` hacia Express en `http://localhost:3001`.
+
+## Produccion
+
+```bash
+npm install
+npm run build
+npm run start
+```
+
+El servidor escucha en:
+
+```js
+process.env.PORT || 3001
+```
+
+## Deploy en Seenode
+
+1. Sube el repositorio a GitHub.
+2. Crea un servicio en Seenode.
+3. Configura las variables `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CHATBOT_API_URL` y `ADMIN_API_KEY`.
+4. Usa `npm install` para instalar dependencias.
+5. Usa `npm run build` para compilar el frontend.
+6. Usa `npm run start` para iniciar Express.
+7. Verifica login con el admin.
+8. Verifica conexion con PostgreSQL.
+9. Verifica conexion con el backend del chatbot.
+10. Entra a `WhatsApp QR` y prueba `Generar QR`.
+
+## Modulos
+
+- Dashboard: metricas de leads, pagos, conversaciones, objeciones, dolor principal, estado de WhatsApp y estado global del bot.
+- Leads: filtros, busqueda, acciones rapidas, detalle y exportacion CSV.
+- Detalle de lead: diagnostico, embudo, control de bot, conversacion, envio manual y notas.
+- Conversaciones: historial por lead, filtros operativos y respuesta manual con human takeover.
+- WhatsApp QR: proxy hacia el chatbot para status, QR, generar QR, reiniciar sesion y logout.
+- Pagos: confirmacion manual, retorno a pendiente, links y acceso a lead/conversacion.
+- Follow-ups: pendientes, enviados, fallidos, cancelacion, reprogramacion y envio inmediato.
+- Configuracion: edicion de `bot_settings` visibles como Hotmart, landing, modelo Gemini, temperatura, tokens, memoria, follow-ups y textos comerciales.
+
+## Endpoints principales del CRM
+
+- `POST /api/auth/login`
+- `GET /api/dashboard/metrics`
+- `GET /api/leads`
+- `GET /api/leads/:id`
+- `PATCH /api/leads/:id`
+- `POST /api/leads/:id/pause-bot`
+- `POST /api/leads/:id/resume-bot`
+- `POST /api/leads/:id/takeover`
+- `POST /api/leads/:id/release-takeover`
+- `POST /api/leads/:id/delete-memory`
+- `POST /api/leads/:id/mark-paid`
+- `POST /api/leads/:id/send-hotmart-link`
+- `GET /api/conversations`
+- `GET /api/conversations/:leadId`
+- `POST /api/conversations/:leadId/send-message`
+- `GET /api/whatsapp/status`
+- `GET /api/whatsapp/qr`
+- `POST /api/whatsapp/generate-qr`
+- `POST /api/whatsapp/restart`
+- `POST /api/whatsapp/logout`
+- `GET /api/payments`
+- `PATCH /api/payments/:id`
+- `GET /api/followups`
+- `PATCH /api/followups/:id`
+- `POST /api/followups/:id/send-now`
+- `GET /api/settings`
+- `PATCH /api/settings`
+
+## QR de WhatsApp
+
+La pagina `WhatsApp QR` no genera el QR por si misma. Llama al backend del chatbot:
+
+- `GET /api/whatsapp/status`
+- `GET /api/whatsapp/qr`
+- `POST /api/whatsapp/generate-qr`
+- `POST /api/whatsapp/restart`
+- `POST /api/whatsapp/logout`
+
+Todas las llamadas se hacen desde el backend del CRM con `x-admin-api-key`. El frontend solo consume `/api/whatsapp/*` del CRM.
+
+## Seguridad
+
+- No hay credenciales hardcodeadas.
+- `DATABASE_URL` no aparece en frontend.
+- `ADMIN_API_KEY` no aparece en frontend.
+- `.env` esta ignorado.
+- Todas las rutas internas requieren JWT.
+- No se expone ni edita la API key de Gemini.
+- Las acciones sensibles crean registros en `admin_actions`.
