@@ -233,6 +233,17 @@ router.post('/:id/delete-memory', async (req, res, next) => {
   }
 });
 
+router.post('/:id/delete-conversation', async (req, res, next) => {
+  try {
+    const leadId = requireUuid(req.params.id);
+    const result = await resetLeadConversation(leadId, req.admin?.email);
+    const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/delete-memory`, { method: 'POST' });
+    res.json({ ...result, chatbot });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/:id/mark-paid', async (req, res, next) => {
   try {
     const leadId = requireUuid(req.params.id);
@@ -312,6 +323,67 @@ async function updateLeadFlags(leadId, updates) {
   }
 
   return result.rows[0];
+}
+
+async function resetLeadConversation(leadId, adminEmail) {
+  const id = requireUuid(leadId);
+
+  return withTransaction(async (client) => {
+    const leadCheck = await client.query('SELECT id FROM leads WHERE id::TEXT = $1 LIMIT 1', [id]);
+    if (leadCheck.rowCount === 0) {
+      const error = new Error('LEAD_NOT_FOUND');
+      error.status = 404;
+      throw error;
+    }
+
+    const memoryDelete = await client.query('DELETE FROM conversation_memory WHERE lead_id::TEXT = $1 RETURNING id', [id]);
+    const messageDelete = await client.query(
+      `DELETE FROM messages
+       WHERE lead_id::TEXT = $1
+          OR conversation_id::TEXT IN (SELECT id::TEXT FROM conversations WHERE lead_id::TEXT = $1)
+       RETURNING id`,
+      [id]
+    );
+    const conversationDelete = await client.query('DELETE FROM conversations WHERE lead_id::TEXT = $1 RETURNING id', [id]);
+
+    const leadUpdate = await client.query(
+      `UPDATE leads
+       SET last_user_message = NULL,
+           last_bot_message = NULL,
+           last_contact_at = NULL,
+           memory_expires_at = NULL,
+           human_takeover = FALSE,
+           bot_paused = FALSE,
+           funnel_stage = 'inicio',
+           updated_at = NOW()
+       WHERE id::TEXT = $1
+       RETURNING *`,
+      [id]
+    );
+
+    await client.query(
+      `INSERT INTO admin_actions (lead_id, action, details, admin_email, created_at)
+       VALUES ($1, 'conversation_deleted', $2, $3, NOW())`,
+      [
+        id,
+        {
+          deleted_messages: messageDelete.rowCount,
+          deleted_conversations: conversationDelete.rowCount,
+          deleted_memory_rows: memoryDelete.rowCount
+        },
+        adminEmail
+      ]
+    );
+
+    return {
+      lead: leadUpdate.rows[0],
+      deleted: {
+        messages: messageDelete.rowCount,
+        conversations: conversationDelete.rowCount,
+        memory: memoryDelete.rowCount
+      }
+    };
+  });
 }
 
 async function markLeadPaid(leadId, adminEmail) {

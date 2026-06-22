@@ -15,6 +15,7 @@ NODE_ENV=production
 JWT_SECRET=
 ADMIN_EMAIL=
 ADMIN_PASSWORD=
+ADMIN_EXTRA_USERS=NEUROTRAUMA:$2a$12$Xf0bmTtShpeWr9itmzsebe.6ElpVcNIHgSW6RUdHlTGDqLeodXLb.
 CHATBOT_API_URL=
 ADMIN_API_KEY=
 PRODUCT_NAME=Neurotraumas(TM)
@@ -49,6 +50,8 @@ Configura:
 - `JWT_SECRET`
 
 `ADMIN_PASSWORD` puede ser una clave normal configurada como variable de entorno o un hash bcrypt. Para mayor seguridad en produccion, usa un hash bcrypt como valor de `ADMIN_PASSWORD`.
+
+Para usuarios adicionales usa `ADMIN_EXTRA_USERS` con formato `usuario:hashBcrypt`, separado por comas si hay mas de uno. El usuario `NEUROTRAUMA` queda configurado con hash bcrypt en `.env.example`; en Seenode debes crear esa misma variable de entorno para habilitarlo.
 
 ## Base de datos compartida
 
@@ -95,7 +98,7 @@ Runtime: Node.js 20.
 
 1. Sube el repositorio a GitHub.
 2. Crea un servicio en Seenode.
-3. Configura las variables `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `CHATBOT_API_URL`, `ADMIN_API_KEY`, `PRODUCT_NAME` y `TIMEZONE`.
+3. Configura las variables `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_EXTRA_USERS`, `CHATBOT_API_URL`, `ADMIN_API_KEY`, `PRODUCT_NAME` y `TIMEZONE`.
 4. Build command: `npm install && npm run build`.
 5. Start command: `npm start`.
 6. Port: `80`.
@@ -129,6 +132,7 @@ Runtime: Node.js 20.
 - `POST /api/leads/:id/takeover`
 - `POST /api/leads/:id/release-takeover`
 - `POST /api/leads/:id/delete-memory`
+- `POST /api/leads/:id/delete-conversation`
 - `POST /api/leads/:id/mark-paid`
 - `POST /api/leads/:id/send-hotmart-link`
 - `POST /api/leads/:id/send-message`

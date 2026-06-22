@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { signAdminToken, verifyAdminPassword } from '../auth.js';
+import { hasConfiguredAdmins, signAdminToken, verifyAdminCredentials } from '../auth.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -14,28 +14,27 @@ const loginLimiter = rateLimit({
 
 router.post('/login', loginLimiter, async (req, res, next) => {
   try {
-    const email = String(req.body?.email || '').trim().toLowerCase();
+    const identity = String(req.body?.email || req.body?.username || '').trim();
     const password = String(req.body?.password || '');
-    const configuredEmail = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
 
-    if (!configuredEmail || !process.env.ADMIN_PASSWORD || !process.env.JWT_SECRET) {
+    if (!hasConfiguredAdmins() || !process.env.JWT_SECRET) {
       return res.status(503).json({ error: 'ADMIN_AUTH_NOT_CONFIGURED' });
     }
 
-    if (!email || !password || email !== configuredEmail) {
+    if (!identity || !password) {
       return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
     }
 
-    const validPassword = await verifyAdminPassword(password);
-    if (!validPassword) {
+    const admin = await verifyAdminCredentials(identity, password);
+    if (!admin) {
       return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
     }
 
-    const token = signAdminToken(configuredEmail);
+    const token = signAdminToken(admin.identity);
     return res.json({
       token,
       admin: {
-        email: configuredEmail
+        email: admin.displayName
       }
     });
   } catch (error) {

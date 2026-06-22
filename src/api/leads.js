@@ -9,6 +9,7 @@ export const leadsApi = {
   takeover: (id) => apiRequest(`/leads/${id}/takeover`, { method: 'POST' }),
   releaseTakeover: (id) => apiRequest(`/leads/${id}/release-takeover`, { method: 'POST' }),
   deleteMemory: (id) => apiRequest(`/leads/${id}/delete-memory`, { method: 'POST' }),
+  deleteConversation: (id) => apiRequest(`/leads/${id}/delete-conversation`, { method: 'POST' }),
   markPaid: (id) => apiRequest(`/leads/${id}/mark-paid`, { method: 'POST' }),
   sendHotmartLink: (id) => apiRequest(`/leads/${id}/send-hotmart-link`, { method: 'POST' }),
   sendMessage: (id, message) => apiRequest(`/leads/${id}/send-message`, { method: 'POST', body: { message } })

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bot, Lock, Mail } from 'lucide-react';
+import { Bot, Lock, UserRound } from 'lucide-react';
 import { apiRequest, setToken } from '../api/client';
 
 export default function Login({ onLogin }) {
@@ -23,7 +23,7 @@ export default function Login({ onLogin }) {
       onLogin?.(payload.admin);
       navigate('/', { replace: true });
     } catch (loginError) {
-      setError(loginError.message === 'ADMIN_AUTH_NOT_CONFIGURED' ? 'Configura ADMIN_EMAIL, ADMIN_PASSWORD y JWT_SECRET.' : 'Credenciales invalidas.');
+      setError(loginError.message === 'ADMIN_AUTH_NOT_CONFIGURED' ? 'Configura al menos un admin y JWT_SECRET.' : 'Credenciales invalidas.');
     } finally {
       setLoading(false);
     }
@@ -49,16 +49,16 @@ export default function Login({ onLogin }) {
           </div>
 
           <label className="mt-6 block">
-            <span className="text-sm font-bold text-slate-700">Email</span>
+            <span className="text-sm font-bold text-slate-700">Email o usuario</span>
             <div className="mt-2 flex items-center gap-2 rounded-lg border border-line bg-slate-50 px-3">
-              <Mail size={18} className="text-slate-400" />
+              <UserRound size={18} className="text-slate-400" />
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 className="h-12 w-full bg-transparent outline-none"
                 required
-                autoComplete="email"
+                autoComplete="username"
               />
             </div>
           </label>

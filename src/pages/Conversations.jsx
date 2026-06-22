@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { CreditCard, Link2, Pause, Play, Send, UserCheck, UserX } from 'lucide-react';
+import { CreditCard, Link2, Pause, Play, Send, Trash2, UserCheck, UserX } from 'lucide-react';
 import { conversationsApi } from '../api/conversations';
 import { leadsApi } from '../api/leads';
 import ConfirmModal from '../components/ConfirmModal';
@@ -159,6 +159,7 @@ export default function Conversations() {
                   <ActionIcon icon={selected.lead.human_takeover ? UserX : UserCheck} label={selected.lead.human_takeover ? 'Liberar' : 'Tomar'} onClick={() => action(selected.lead.human_takeover ? 'releaseTakeover' : 'takeover')} />
                   <ActionIcon icon={Link2} label="Hotmart" onClick={() => action('sendHotmartLink')} />
                   <ActionIcon icon={CreditCard} label="Pago" onClick={() => setPendingAction('markPaid')} />
+                  <ActionIcon icon={Trash2} label="Eliminar" tone="danger" onClick={() => setPendingAction('deleteConversation')} />
                 </div>
               </div>
 
@@ -181,10 +182,10 @@ export default function Conversations() {
 
       <ConfirmModal
         open={Boolean(pendingAction)}
-        title={pendingAction === 'markPaid' ? 'Confirmar pago' : 'Pausar bot'}
-        body={pendingAction === 'markPaid' ? 'Esto marcara el pago como confirmado y movera el lead a onboarding.' : 'Confirma que quieres pausar el bot para este lead.'}
-        confirmLabel={pendingAction === 'markPaid' ? 'Confirmar pago' : 'Pausar bot'}
-        tone={pendingAction === 'markPaid' ? 'success' : 'danger'}
+        title={getConfirmCopy(pendingAction).title}
+        body={getConfirmCopy(pendingAction).body}
+        confirmLabel={getConfirmCopy(pendingAction).label}
+        tone={getConfirmCopy(pendingAction).tone}
         onCancel={() => setPendingAction(null)}
         onConfirm={() => action(pendingAction)}
       />
@@ -192,12 +193,40 @@ export default function Conversations() {
   );
 }
 
-function ActionIcon({ icon: Icon, label, onClick }) {
+function ActionIcon({ icon: Icon, label, onClick, tone = 'default' }) {
+  const toneClass = tone === 'danger' ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100' : 'border-line bg-white text-slate-700 hover:bg-slate-50';
   return (
-    <button onClick={onClick} className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+    <button onClick={onClick} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-bold ${toneClass}`}>
       <Icon size={16} /> {label}
     </button>
   );
+}
+
+function getConfirmCopy(action) {
+  if (action === 'markPaid') {
+    return {
+      title: 'Confirmar pago',
+      body: 'Esto marcara el pago como confirmado y movera el lead a onboarding.',
+      label: 'Confirmar pago',
+      tone: 'success'
+    };
+  }
+
+  if (action === 'deleteConversation') {
+    return {
+      title: 'Eliminar conversacion',
+      body: 'Esto borrara los mensajes, la conversacion y la memoria temporal de este lead. El bot empezara sin contexto previo.',
+      label: 'Eliminar conversacion',
+      tone: 'danger'
+    };
+  }
+
+  return {
+    title: 'Pausar bot',
+    body: 'Confirma que quieres pausar el bot para este lead.',
+    label: 'Pausar bot',
+    tone: 'danger'
+  };
 }
 
 function PhoneText({ lead }) {
