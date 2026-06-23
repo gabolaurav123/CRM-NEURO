@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import { query, withTransaction } from '../db.js';
 import { assertChatbotSuccess, chatbotRequest } from '../services/chatbotClient.js';
+import { crmWhere, getCrmKey } from '../utils/crm.js';
 
 const router = Router();
 const VALID_FOLLOWUP_STATUSES = ['pending', 'sent', 'cancelled', 'failed'];
 
 router.get('/', async (req, res, next) => {
   try {
-    const { whereSql, values } = buildFollowupFilters(req.query);
+    const crmKey = getCrmKey(req);
+    const { whereSql, values } = buildFollowupFilters(req.query, crmKey);
     const result = await query(
       `SELECT
          f.*,
@@ -36,7 +38,7 @@ router.get('/', async (req, res, next) => {
 
 router.patch('/:id', async (req, res, next) => {
   try {
-    const result = await updateFollowup(req.params.id, req.body || {}, req.admin?.email);
+    const result = await updateFollowup(req.params.id, req.body || {}, req.admin?.email, getCrmKey(req));
     res.json(result);
   } catch (error) {
     next(error);
@@ -45,14 +47,15 @@ router.patch('/:id', async (req, res, next) => {
 
 router.post('/:id/send-now', async (req, res, next) => {
   try {
-    const followup = await query('SELECT * FROM followups WHERE id::TEXT = $1 LIMIT 1', [String(req.params.id)]);
+    const crmKey = getCrmKey(req);
+    const followup = await query(`SELECT * FROM followups WHERE id::TEXT = $1 AND ${crmWhere()} = $2 LIMIT 1`, [String(req.params.id), crmKey]);
     if (followup.rowCount === 0) {
       return res.status(404).json({ error: 'FOLLOWUP_NOT_FOUND' });
     }
 
-    const chatbot = await chatbotRequest(`/api/followups/${req.params.id}/send-now`, { method: 'POST' });
+    const chatbot = await chatbotRequest(`/api/followups/${req.params.id}/send-now`, { method: 'POST', crmKey });
     assertChatbotSuccess(chatbot, 'Follow-up was not sent by chatbot');
-    const result = await updateFollowup(req.params.id, { status: 'sent', sent_at: new Date().toISOString() }, req.admin?.email);
+    const result = await updateFollowup(req.params.id, { status: 'sent', sent_at: new Date().toISOString() }, req.admin?.email, crmKey);
 
     res.json({ ...result, chatbot });
   } catch (error) {
@@ -60,7 +63,7 @@ router.post('/:id/send-now', async (req, res, next) => {
   }
 });
 
-async function updateFollowup(followupId, body, adminEmail) {
+async function updateFollowup(followupId, body, adminEmail, crmKey = 'neurotraumas') {
   const editable = ['status', 'scheduled_for', 'scheduled_at', 'sent_at', 'message', 'type'];
   const updates = Object.fromEntries(Object.entries(body).filter(([key]) => editable.includes(key)));
 
@@ -78,7 +81,7 @@ async function updateFollowup(followupId, body, adminEmail) {
   }
 
   if (Object.keys(updates).length === 0) {
-    const current = await query('SELECT * FROM followups WHERE id::TEXT = $1 LIMIT 1', [String(followupId)]);
+    const current = await query(`SELECT * FROM followups WHERE id::TEXT = $1 AND ${crmWhere()} = $2 LIMIT 1`, [String(followupId), crmKey]);
     if (current.rowCount === 0) {
       const error = new Error('FOLLOWUP_NOT_FOUND');
       error.status = 404;
@@ -99,9 +102,9 @@ async function updateFollowup(followupId, body, adminEmail) {
     const result = await client.query(
       `UPDATE followups
        SET ${assignments.join(', ')}, updated_at = NOW()
-       WHERE id::TEXT = $${values.length}
+       WHERE id::TEXT = $${values.length} AND ${crmWhere()} = $${values.length + 1}
        RETURNING *`,
-      values
+      [...values, crmKey]
     );
 
     if (result.rowCount === 0) {
@@ -112,18 +115,18 @@ async function updateFollowup(followupId, body, adminEmail) {
 
     const followup = result.rows[0];
     await client.query(
-      `INSERT INTO admin_actions (lead_id, action, details, admin_email, created_at)
-       VALUES ($1, 'followup_updated', $2, $3, NOW())`,
-      [followup.lead_id ? String(followup.lead_id) : null, { followup_id: followup.id, updates }, adminEmail]
+      `INSERT INTO admin_actions (lead_id, crm_key, action, details, admin_email, created_at)
+       VALUES ($1, $2, 'followup_updated', $3, $4, NOW())`,
+      [followup.lead_id ? String(followup.lead_id) : null, crmKey, { followup_id: followup.id, updates }, adminEmail]
     );
 
     return { followup };
   });
 }
 
-function buildFollowupFilters(filters) {
-  const where = [];
-  const values = [];
+function buildFollowupFilters(filters, crmKey) {
+  const where = [`${crmWhere('l')} = $1`];
+  const values = [crmKey];
 
   if (filters.status) {
     values.push(String(filters.status));

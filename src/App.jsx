@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
-import { apiRequest, clearToken, getToken } from './api/client';
+import { apiRequest, clearSelectedCrm, clearToken, getSelectedCrm, getToken, setSelectedCrm } from './api/client';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Conversations from './pages/Conversations';
+import CrmSelect from './pages/CrmSelect';
 import Dashboard from './pages/Dashboard';
 import FollowUps from './pages/FollowUps';
 import LeadDetail from './pages/LeadDetail';
@@ -12,6 +13,7 @@ import Login from './pages/Login';
 import Payments from './pages/Payments';
 import Settings from './pages/Settings';
 import WhatsAppQR from './pages/WhatsAppQR';
+import { getCrmByKey } from './utils/crm';
 
 export default function App() {
   return (
@@ -24,6 +26,7 @@ export default function App() {
 function AppRoutes() {
   const navigate = useNavigate();
   const [admin, setAdmin] = useState(null);
+  const [crmKey, setCrmKey] = useState(getSelectedCrm());
 
   useEffect(() => {
     if (!getToken()) return;
@@ -31,7 +34,9 @@ function AppRoutes() {
       .then((payload) => setAdmin(payload.admin))
       .catch(() => {
         clearToken();
+        clearSelectedCrm();
         setAdmin(null);
+        setCrmKey(null);
       });
   }, []);
 
@@ -42,15 +47,37 @@ function AppRoutes() {
       // Logout is local even if the token is already expired.
     }
     clearToken();
+    clearSelectedCrm();
     setAdmin(null);
+    setCrmKey(null);
     navigate('/login', { replace: true });
+  }
+
+  function chooseCrm(nextCrmKey) {
+    setSelectedCrm(nextCrmKey);
+    setCrmKey(nextCrmKey);
+    navigate('/', { replace: true });
+  }
+
+  function handleLogin(nextAdmin) {
+    clearSelectedCrm();
+    setCrmKey(null);
+    setAdmin(nextAdmin);
+  }
+
+  function changeCrm() {
+    clearSelectedCrm();
+    setCrmKey(null);
+    navigate('/select-crm', { replace: true });
   }
 
   return (
     <Routes>
-      <Route path="/login" element={<Login onLogin={setAdmin} />} />
+      <Route path="/login" element={<Login onLogin={handleLogin} />} />
       <Route element={<ProtectedRoute />}>
-        <Route element={<PrivateShell admin={admin} onLogout={logout} />}>
+        <Route path="select-crm" element={<CrmSelect admin={admin} onSelect={chooseCrm} onLogout={logout} />} />
+        <Route element={<RequireCrm crmKey={crmKey} />}>
+          <Route element={<PrivateShell admin={admin} crmKey={crmKey} onChangeCrm={changeCrm} onLogout={logout} />}>
           <Route index element={<Dashboard />} />
           <Route path="leads" element={<Leads />} />
           <Route path="leads/:id" element={<LeadDetail />} />
@@ -60,6 +87,7 @@ function AppRoutes() {
           <Route path="payments" element={<Payments />} />
           <Route path="followups" element={<FollowUps />} />
           <Route path="settings" element={<Settings />} />
+          </Route>
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -67,9 +95,14 @@ function AppRoutes() {
   );
 }
 
-function PrivateShell({ admin, onLogout }) {
+function RequireCrm({ crmKey }) {
+  return crmKey ? <Outlet /> : <Navigate to="/select-crm" replace />;
+}
+
+function PrivateShell({ admin, crmKey, onChangeCrm, onLogout }) {
+  const crm = getCrmByKey(crmKey);
   return (
-    <Layout admin={admin} onLogout={onLogout}>
+    <Layout admin={admin} crm={crm} onChangeCrm={onChangeCrm} onLogout={onLogout}>
       <Outlet />
     </Layout>
   );

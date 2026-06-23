@@ -20,6 +20,7 @@ export async function chatbotRequest(path, options = {}) {
     headers: {
       'content-type': 'application/json',
       'x-admin-api-key': adminKey,
+      ...(options.crmKey ? { 'x-crm-key': options.crmKey } : {}),
       ...(options.headers || {})
     },
     body: options.body ? JSON.stringify(options.body) : undefined

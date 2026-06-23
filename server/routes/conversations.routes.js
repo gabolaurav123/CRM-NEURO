@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { sendManualLeadMessage } from '../services/messagesService.js';
+import { crmWhere, getCrmKey } from '../utils/crm.js';
 import { requireUuid } from '../utils/ids.js';
 
 const router = Router();
 
 router.get('/', async (req, res, next) => {
   try {
-    const { whereSql, values } = buildConversationFilters(req.query);
+    const crmKey = getCrmKey(req);
+    const { whereSql, values } = buildConversationFilters(req.query, crmKey);
     const result = await query(
       `WITH last_messages AS (
          SELECT DISTINCT ON (lead_id::TEXT)
@@ -54,7 +56,8 @@ router.get('/', async (req, res, next) => {
 router.get('/:leadId', async (req, res, next) => {
   try {
     const leadId = requireUuid(req.params.leadId);
-    const lead = await query('SELECT * FROM leads WHERE id::TEXT = $1 LIMIT 1', [leadId]);
+    const crmKey = getCrmKey(req);
+    const lead = await query(`SELECT * FROM leads WHERE id::TEXT = $1 AND ${crmWhere()} = $2 LIMIT 1`, [leadId, crmKey]);
 
     if (lead.rowCount === 0) {
       return res.status(404).json({ error: 'LEAD_NOT_FOUND' });
@@ -65,11 +68,15 @@ router.get('/:leadId', async (req, res, next) => {
               COALESCE(body, message_text, content, '') AS body,
               from_me, metadata, created_at
        FROM messages
-       WHERE lead_id::TEXT = $1
-          OR conversation_id::TEXT IN (SELECT id::TEXT FROM conversations WHERE lead_id::TEXT = $1)
+       WHERE (lead_id::TEXT = $1 AND ${crmWhere()} = $2)
+          OR conversation_id::TEXT IN (
+            SELECT id::TEXT
+            FROM conversations
+            WHERE lead_id::TEXT = $1 AND ${crmWhere()} = $2
+          )
        ORDER BY created_at ASC
        LIMIT 500`,
-      [leadId]
+      [leadId, crmKey]
     );
 
     res.json({ lead: lead.rows[0], messages: messages.rows });
@@ -83,6 +90,7 @@ router.post('/:leadId/send-message', async (req, res, next) => {
     const result = await sendManualLeadMessage({
       leadId: req.params.leadId,
       message: req.body?.message,
+      crmKey: getCrmKey(req),
       adminEmail: req.admin?.email
     });
     res.json(result);
@@ -91,9 +99,9 @@ router.post('/:leadId/send-message', async (req, res, next) => {
   }
 });
 
-function buildConversationFilters(filters) {
-  const where = [];
-  const values = [];
+function buildConversationFilters(filters, crmKey) {
+  const where = [`${crmWhere('l')} = $1`];
+  const values = [crmKey];
   const add = (sql, value) => {
     values.push(value);
     where.push(sql.replace('?', `$${values.length}`));

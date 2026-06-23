@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import { query, withTransaction } from '../db.js';
 import { optionalChatbotRequest } from '../services/chatbotClient.js';
+import { crmWhere, getCrmKey } from '../utils/crm.js';
 
 const router = Router();
 const VALID_PAYMENT_STATUSES = ['pending', 'reported', 'confirmed', 'failed', 'cancelled', 'pendiente', 'reportado', 'pagado'];
 
 router.get('/', async (req, res, next) => {
   try {
-    const { whereSql, values } = buildPaymentFilters(req.query);
+    const crmKey = getCrmKey(req);
+    const { whereSql, values } = buildPaymentFilters(req.query, crmKey);
     const result = await query(
       `SELECT
          p.*,
@@ -41,14 +43,14 @@ router.patch('/:id', async (req, res, next) => {
       return res.status(400).json({ error: 'INVALID_PAYMENT_STATUS' });
     }
 
-    const result = await updatePayment(req.params.id, req.body || {}, req.admin?.email);
+    const result = await updatePayment(req.params.id, req.body || {}, req.admin?.email, getCrmKey(req));
     res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
-async function updatePayment(paymentId, body, adminEmail) {
+async function updatePayment(paymentId, body, adminEmail, crmKey = 'neurotraumas') {
   return withTransaction(async (client) => {
     const editable = ['status', 'amount', 'currency', 'provider', 'link', 'reported_by_user', 'manually_confirmed'];
     const updates = Object.fromEntries(Object.entries(body).filter(([key]) => editable.includes(key)));
@@ -60,7 +62,7 @@ async function updatePayment(paymentId, body, adminEmail) {
     }
 
     if (Object.keys(updates).length === 0) {
-      const current = await client.query('SELECT * FROM payments WHERE id::TEXT = $1 LIMIT 1', [String(paymentId)]);
+      const current = await client.query(`SELECT * FROM payments WHERE id::TEXT = $1 AND ${crmWhere()} = $2 LIMIT 1`, [String(paymentId), crmKey]);
       if (current.rowCount === 0) {
         const error = new Error('PAYMENT_NOT_FOUND');
         error.status = 404;
@@ -85,9 +87,9 @@ async function updatePayment(paymentId, body, adminEmail) {
     const paymentUpdate = await client.query(
       `UPDATE payments
        SET ${assignments.join(', ')}, updated_at = NOW()
-       WHERE id::TEXT = $${values.length}
+       WHERE id::TEXT = $${values.length} AND ${crmWhere()} = $${values.length + 1}
        RETURNING *`,
-      values
+      [...values, crmKey]
     );
 
     if (paymentUpdate.rowCount === 0) {
@@ -106,9 +108,9 @@ async function updatePayment(paymentId, body, adminEmail) {
              lead_status = 'comprador',
              funnel_stage = 'onboarding',
              updated_at = NOW()
-         WHERE id::TEXT = $1
+         WHERE id::TEXT = $1 AND ${crmWhere()} = $2
          RETURNING *`,
-        [String(payment.lead_id)]
+        [String(payment.lead_id), crmKey]
       );
       lead = leadUpdate.rows[0] || null;
     } else if (updates.status === 'pending' || updates.status === 'pendiente') {
@@ -116,9 +118,9 @@ async function updatePayment(paymentId, body, adminEmail) {
         `UPDATE leads
          SET payment_status = 'pendiente',
              updated_at = NOW()
-         WHERE id::TEXT = $1
+         WHERE id::TEXT = $1 AND ${crmWhere()} = $2
          RETURNING *`,
-        [String(payment.lead_id)]
+        [String(payment.lead_id), crmKey]
       );
       lead = leadUpdate.rows[0] || null;
     } else if (updates.status === 'reported' || updates.status === 'reportado') {
@@ -127,26 +129,28 @@ async function updatePayment(paymentId, body, adminEmail) {
          SET payment_status = 'reportado',
              funnel_stage = 'pago_reportado',
              updated_at = NOW()
-         WHERE id::TEXT = $1
+         WHERE id::TEXT = $1 AND ${crmWhere()} = $2
          RETURNING *`,
-        [String(payment.lead_id)]
+        [String(payment.lead_id), crmKey]
       );
       lead = leadUpdate.rows[0] || null;
     }
 
     await client.query(
-      `INSERT INTO admin_actions (lead_id, action, details, admin_email, created_at)
-       VALUES ($1, 'payment_updated', $2, $3, NOW())`,
-      [payment.lead_id ? String(payment.lead_id) : null, { payment_id: payment.id, updates }, adminEmail]
+      `INSERT INTO admin_actions (lead_id, crm_key, action, details, admin_email, created_at)
+       VALUES ($1, $2, 'payment_updated', $3, $4, NOW())`,
+      [payment.lead_id ? String(payment.lead_id) : null, crmKey, { payment_id: payment.id, updates }, adminEmail]
     );
 
     let chatbot = null;
     if (updates.status === 'confirmed') {
+      const programName = getProgramName(crmKey);
       chatbot = await optionalChatbotRequest(`/api/payments/${payment.id}/confirm`, {
         method: 'POST',
+        crmKey,
         body: {
           message:
-            'Tu inscripcion fue confirmada. Bienvenido(a) a Neurotraumas(TM). En breve recibiras las instrucciones de acceso, comunidad y primeros pasos del programa.'
+            `Tu inscripcion fue confirmada. Bienvenido(a) a ${programName}. En breve recibiras las instrucciones de acceso, comunidad y primeros pasos.`
         }
       });
     }
@@ -155,9 +159,13 @@ async function updatePayment(paymentId, body, adminEmail) {
   });
 }
 
-function buildPaymentFilters(filters) {
-  const where = [];
-  const values = [];
+function getProgramName(crmKey) {
+  return crmKey === 'holograficas' ? 'Holograficas' : 'Neurotraumas(TM)';
+}
+
+function buildPaymentFilters(filters, crmKey) {
+  const where = [`${crmWhere('l')} = $1`];
+  const values = [crmKey];
 
   if (filters.status) {
     values.push(String(filters.status));

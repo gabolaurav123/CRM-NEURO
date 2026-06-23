@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bot, Lock, UserRound } from 'lucide-react';
+import { Lock, UserRound } from 'lucide-react';
 import { apiRequest, setToken } from '../api/client';
+import BrandLogo from '../components/BrandLogo';
 
 export default function Login({ onLogin }) {
   const navigate = useNavigate();
@@ -21,7 +22,7 @@ export default function Login({ onLogin }) {
       });
       setToken(payload.token);
       onLogin?.(payload.admin);
-      navigate('/', { replace: true });
+      navigate('/select-crm', { replace: true });
     } catch (loginError) {
       setError(loginError.message === 'ADMIN_AUTH_NOT_CONFIGURED' ? 'Configura al menos un admin y JWT_SECRET.' : 'Credenciales invalidas.');
     } finally {
@@ -33,12 +34,12 @@ export default function Login({ onLogin }) {
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="mx-auto grid min-h-screen max-w-6xl items-center gap-10 px-5 py-10 lg:grid-cols-[1fr_420px]">
         <section>
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-lg bg-teal-500">
-            <Bot size={28} />
+          <div className="inline-flex rounded-lg bg-white px-4 py-3">
+            <BrandLogo />
           </div>
-          <h1 className="mt-6 max-w-2xl text-4xl font-bold leading-tight sm:text-5xl">Neurotraumas CRM</h1>
+          <h1 className="mt-6 max-w-2xl text-4xl font-bold leading-tight sm:text-5xl">CRM privado</h1>
           <p className="mt-4 max-w-xl text-lg leading-8 text-slate-300">
-            Administracion privada de leads, conversaciones, pagos, follow-ups, configuracion del bot y vinculacion de WhatsApp.
+            Administracion privada para elegir y operar los CRMs disponibles, con conversaciones, pagos, follow-ups y vinculacion de WhatsApp.
           </p>
         </section>
 

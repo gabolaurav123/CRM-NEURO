@@ -1,6 +1,6 @@
 # CRM Neurotraumas
 
-CRM web privado para administrar leads, conversaciones, pagos, follow-ups, configuracion visible del bot y vinculacion de WhatsApp por QR para el chatbot Neurotraumas(TM).
+CRM web privado para administrar leads, conversaciones, pagos, follow-ups, configuracion visible del bot y vinculacion de WhatsApp por QR. Despues del login permite elegir entre los CRMs `Neurotraumas` y `Holograficas`.
 
 El CRM usa React + Vite + TailwindCSS en frontend y Express + PostgreSQL en backend. Express sirve el `dist` generado por Vite en produccion.
 
@@ -33,6 +33,11 @@ No subas `.env` a GitHub. El archivo ya esta ignorado por `.gitignore`.
 x-admin-api-key: ADMIN_API_KEY
 ```
 
+Cuando se elige un CRM, el frontend envia `x-crm-key` al backend y el backend lo reenvia al chatbot. Valores actuales:
+
+- `neurotraumas`
+- `holograficas`
+
 La API key de Gemini no se muestra, no se guarda y no se edita desde este CRM.
 
 El enlace principal de pago es Hotmart:
@@ -53,6 +58,13 @@ Configura:
 
 Para usuarios adicionales usa `ADMIN_EXTRA_USERS` con formato `usuario:hashBcrypt`, separado por comas si hay mas de uno. El usuario `NEUROTRAUMA` queda configurado con hash bcrypt en `.env.example`; en Seenode debes crear esa misma variable de entorno para habilitarlo.
 
+## CRMs disponibles
+
+- Neurotraumas: operacion actual con el logo NTR y datos existentes.
+- Holograficas: operacion separada dentro del mismo panel, con leads, conversaciones, pagos y follow-ups filtrados por `crm_key`.
+
+WhatsApp funciona como una sesion compartida hacia el mismo chatbot y el mismo numero. Si se desvincula o se vincula desde un CRM, el estado de WhatsApp queda reflejado en el panel, y el backend informa al chatbot cual CRM esta activo mediante `x-crm-key`.
+
 ## Base de datos compartida
 
 El CRM lee y edita las tablas compartidas con `CHATBOT-NEURO`:
@@ -68,6 +80,8 @@ El CRM lee y edita las tablas compartidas con `CHATBOT-NEURO`:
 - `admin_actions`
 
 `server/database/schema.sql` contiene migraciones idempotentes con `CREATE TABLE IF NOT EXISTS` y `ADD COLUMN IF NOT EXISTS`. No crea credenciales ni secretos.
+
+Las tablas operativas incluyen `crm_key` con valor por defecto `neurotraumas` para mantener compatibilidad con datos ya existentes.
 
 ## Desarrollo local
 

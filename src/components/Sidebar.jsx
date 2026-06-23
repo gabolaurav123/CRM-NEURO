@@ -1,8 +1,8 @@
 import { NavLink } from 'react-router-dom';
 import {
   BarChart3,
-  Bot,
   CreditCard,
+  Layers2,
   LogOut,
   MessageCircle,
   QrCode,
@@ -10,6 +10,7 @@ import {
   Users,
   Workflow
 } from 'lucide-react';
+import BrandLogo from './BrandLogo';
 
 const items = [
   { to: '/', label: 'Dashboard', icon: BarChart3 },
@@ -21,16 +22,16 @@ const items = [
   { to: '/settings', label: 'Configuracion', icon: Settings }
 ];
 
-export default function Sidebar({ onLogout }) {
+export default function Sidebar({ crm, onChangeCrm, onLogout }) {
   return (
     <aside className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 px-3 py-2 shadow-soft backdrop-blur lg:inset-y-0 lg:left-0 lg:right-auto lg:w-72 lg:border-r lg:border-t-0 lg:px-4 lg:py-5">
       <div className="hidden px-2 pb-6 lg:block">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-ink text-white">
-            <Bot size={22} />
+        <div className="space-y-3">
+          <div className="rounded-lg border border-line bg-white p-2">
+            <BrandLogo compact className="max-w-full" />
           </div>
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-brand-700">Neurotraumas</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-brand-700">{crm?.name || 'CRM'}</p>
             <h1 className="text-xl font-bold text-ink">CRM privado</h1>
           </div>
         </div>
@@ -56,6 +57,15 @@ export default function Sidebar({ onLogout }) {
             </NavLink>
           );
         })}
+        <button
+          type="button"
+          onClick={onChangeCrm}
+          className="flex min-w-[72px] flex-col items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-ink lg:mt-4 lg:min-w-0 lg:w-full lg:flex-row lg:gap-3 lg:px-3 lg:py-3 lg:text-sm"
+          title="Cambiar CRM"
+        >
+          <Layers2 size={19} />
+          <span>Cambiar CRM</span>
+        </button>
         <button
           type="button"
           onClick={onLogout}

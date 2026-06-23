@@ -2,14 +2,16 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { createAdminAction } from '../services/adminActions.js';
 import { chatbotRequest } from '../services/chatbotClient.js';
+import { getCrmKey } from '../utils/crm.js';
 
 const router = Router();
 
 router.get('/status', async (req, res, next) => {
   try {
-    const payload = await chatbotRequest('/api/whatsapp/status');
+    const crmKey = getCrmKey(req);
+    const payload = await chatbotRequest('/api/whatsapp/status', { crmKey });
     const status = normalizeWhatsappPayload(payload);
-    await storeWhatsappSession(status);
+    await storeWhatsappSession(status, crmKey);
     res.json(status);
   } catch (error) {
     const fallback = await getLatestWhatsappSession().catch(() => null);
@@ -26,9 +28,10 @@ router.get('/status', async (req, res, next) => {
 
 router.get('/qr', async (req, res, next) => {
   try {
-    const payload = await chatbotRequest('/api/whatsapp/qr');
+    const crmKey = getCrmKey(req);
+    const payload = await chatbotRequest('/api/whatsapp/qr', { crmKey });
     const status = normalizeWhatsappPayload(payload);
-    await storeWhatsappSession(status);
+    await storeWhatsappSession(status, crmKey);
     res.json(status);
   } catch (error) {
     const fallback = await getLatestWhatsappSession().catch(() => null);
@@ -45,10 +48,11 @@ router.get('/qr', async (req, res, next) => {
 
 router.post('/generate-qr', async (req, res, next) => {
   try {
-    const payload = await chatbotRequest('/api/whatsapp/generate-qr', { method: 'POST' });
+    const crmKey = getCrmKey(req);
+    const payload = await chatbotRequest('/api/whatsapp/generate-qr', { method: 'POST', crmKey });
     const status = normalizeWhatsappPayload(payload, 'qr_pending');
-    await storeWhatsappSession(status);
-    await createAdminAction({ action: 'whatsapp_generate_qr', details: { status: status.status }, adminEmail: req.admin?.email });
+    await storeWhatsappSession(status, crmKey);
+    await createAdminAction({ crmKey, action: 'whatsapp_generate_qr', details: { status: status.status }, adminEmail: req.admin?.email });
     res.json(status);
   } catch (error) {
     next(error);
@@ -57,10 +61,11 @@ router.post('/generate-qr', async (req, res, next) => {
 
 router.post('/restart', async (req, res, next) => {
   try {
-    const payload = await chatbotRequest('/api/whatsapp/restart', { method: 'POST' });
+    const crmKey = getCrmKey(req);
+    const payload = await chatbotRequest('/api/whatsapp/restart', { method: 'POST', crmKey });
     const status = normalizeWhatsappPayload(payload, 'initializing');
-    await storeWhatsappSession(status);
-    await createAdminAction({ action: 'whatsapp_restart', details: { status: status.status }, adminEmail: req.admin?.email });
+    await storeWhatsappSession(status, crmKey);
+    await createAdminAction({ crmKey, action: 'whatsapp_restart', details: { status: status.status }, adminEmail: req.admin?.email });
     res.json(status);
   } catch (error) {
     next(error);
@@ -69,10 +74,11 @@ router.post('/restart', async (req, res, next) => {
 
 router.post('/logout', async (req, res, next) => {
   try {
-    const payload = await chatbotRequest('/api/whatsapp/logout', { method: 'POST' });
+    const crmKey = getCrmKey(req);
+    const payload = await chatbotRequest('/api/whatsapp/logout', { method: 'POST', crmKey });
     const status = normalizeWhatsappPayload(payload, 'disconnected');
-    await storeWhatsappSession(status);
-    await createAdminAction({ action: 'whatsapp_logout', details: { status: status.status }, adminEmail: req.admin?.email });
+    await storeWhatsappSession(status, crmKey);
+    await createAdminAction({ crmKey, action: 'whatsapp_logout', details: { status: status.status }, adminEmail: req.admin?.email });
     res.json(status);
   } catch (error) {
     next(error);
@@ -94,12 +100,13 @@ function normalizeWhatsappPayload(payload, fallbackStatus = 'disconnected') {
   };
 }
 
-async function storeWhatsappSession(status) {
+async function storeWhatsappSession(status, crmKey = 'neurotraumas') {
   await query(
-    `INSERT INTO whatsapp_sessions (status, phone, whatsapp_id, display_phone, qr_code, last_qr_at, last_connected_at, updated_at, metadata)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)`,
+    `INSERT INTO whatsapp_sessions (status, crm_key, phone, whatsapp_id, display_phone, qr_code, last_qr_at, last_connected_at, updated_at, metadata)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)`,
     [
       status.status,
+      crmKey,
       status.phone || null,
       status.whatsapp_id || null,
       status.display_phone || null,
