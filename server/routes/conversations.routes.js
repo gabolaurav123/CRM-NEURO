@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { sendManualLeadMessage } from '../services/messagesService.js';
+import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
 import { crmWhere, getCrmKey } from '../utils/crm.js';
 import { requireUuid } from '../utils/ids.js';
 
@@ -9,6 +10,7 @@ const router = Router();
 router.get('/', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
+    await syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey: crmKey });
     const { whereSql, values } = buildConversationFilters(req.query, crmKey);
     const result = await query(
       `WITH last_messages AS (

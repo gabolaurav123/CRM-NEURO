@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { query } from '../db.js';
+import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
 import { getSettings } from '../services/settingsService.js';
 import { crmWhere, getCrmKey } from '../utils/crm.js';
 
@@ -8,6 +9,7 @@ const router = Router();
 router.get('/metrics', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
+    await syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey: crmKey });
     const [metrics, commonObjection, commonPain, leadsByDay, leadsByStatus, leadsByPain, funnel, whatsapp, settings] =
       await Promise.all([
         query(`

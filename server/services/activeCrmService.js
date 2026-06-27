@@ -2,6 +2,7 @@ import { query } from '../db.js';
 import { DEFAULT_CRM_KEY, normalizeCrmKey } from '../utils/crm.js';
 
 const ACTIVE_CRM_KEYS = ['active_crm_key', 'whatsapp_active_crm_key'];
+const ACTIVE_CRM_STARTED_AT_KEY = 'whatsapp_active_crm_started_at';
 
 export async function setActiveWhatsappCrm(crmKey, client = null) {
   const activeCrmKey = normalizeCrmKey(crmKey);
@@ -16,6 +17,14 @@ export async function setActiveWhatsappCrm(crmKey, client = null) {
       [key, activeCrmKey]
     );
   }
+
+  await executor.query(
+    `INSERT INTO bot_settings (key, value, value_type, updated_at)
+     VALUES ($1, NOW()::TEXT, 'datetime', NOW())
+     ON CONFLICT (key)
+     DO UPDATE SET value = NOW()::TEXT, value_type = EXCLUDED.value_type, updated_at = NOW()`,
+    [ACTIVE_CRM_STARTED_AT_KEY]
+  );
 
   return activeCrmKey;
 }
@@ -42,6 +51,28 @@ export async function getActiveWhatsappCrm() {
   );
 
   return normalizeCrmKey(session.rows[0]?.crm_key || DEFAULT_CRM_KEY);
+}
+
+export async function getActiveWhatsappCrmDetails() {
+  const setting = await query(
+    `SELECT key, value, updated_at
+     FROM bot_settings
+     WHERE key = ANY($1)
+     ORDER BY CASE key WHEN 'whatsapp_active_crm_key' THEN 0 ELSE 1 END
+     LIMIT 1`,
+    [ACTIVE_CRM_KEYS]
+  );
+  const row = setting.rows[0] || null;
+  const crmKey = normalizeCrmKey(row?.value || DEFAULT_CRM_KEY);
+
+  const started = await query('SELECT value, updated_at FROM bot_settings WHERE key = $1 LIMIT 1', [ACTIVE_CRM_STARTED_AT_KEY]);
+  const startedAt = started.rows[0]?.value || row?.updated_at || null;
+
+  return {
+    crmKey,
+    startedAt,
+    settingUpdatedAt: row?.updated_at || null
+  };
 }
 
 export function activeCrmPayload(crmKey) {

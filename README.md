@@ -21,6 +21,7 @@ ADMIN_API_KEY=
 PRODUCT_NAME=Neurotraumas(TM)
 HOTMART_LINK=https://pay.hotmart.com/T103515864E
 TIMEZONE=America/La_Paz
+CRM_ACTIVE_SYNC_HOURS=168
 ```
 
 No subas `.env` a GitHub. El archivo ya esta ignorado por `.gitignore`.
@@ -52,6 +53,31 @@ Respuesta esperada:
 ```
 
 Cuando se genera o reinicia el QR desde Holograficas, el CRM guarda `bot_settings.whatsapp_active_crm_key=holograficas`. El chatbot debe usar ese valor al insertar `leads`, `messages`, `conversations`, `conversation_memory`, `followups` y `payments`.
+
+Como proteccion adicional, cuando el panel abre Holograficas y WhatsApp activo tambien es Holograficas, el CRM mueve automaticamente hacia Holograficas los leads/mensajes recientes que el chatbot haya insertado por defecto en `neurotraumas`. La ventana por defecto es `CRM_ACTIVE_SYNC_HOURS=168`.
+
+Para guardar datos estructurados desde el chatbot, usa:
+
+```http
+POST /api/internal/leads/upsert
+x-admin-api-key: ADMIN_API_KEY
+content-type: application/json
+```
+
+Ejemplo:
+
+```json
+{
+  "name": "Maria",
+  "phone": "+59170000000",
+  "email": "maria@example.com",
+  "country": "Bolivia",
+  "city": "La Paz",
+  "whatsapp_id": "59170000000@s.whatsapp.net"
+}
+```
+
+Si no se manda `crm_key`, el endpoint usa el `whatsapp_active_crm_key` vigente.
 
 La API key de Gemini no se muestra, no se guarda y no se edita desde este CRM.
 

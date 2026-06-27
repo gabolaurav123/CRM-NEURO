@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query, withTransaction } from '../db.js';
 import { assertChatbotSuccess, chatbotRequest } from '../services/chatbotClient.js';
+import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
 import { crmWhere, getCrmKey } from '../utils/crm.js';
 
 const router = Router();
@@ -9,6 +10,7 @@ const VALID_FOLLOWUP_STATUSES = ['pending', 'sent', 'cancelled', 'failed'];
 router.get('/', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
+    await syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey: crmKey });
     const { whereSql, values } = buildFollowupFilters(req.query, crmKey);
     const result = await query(
       `SELECT

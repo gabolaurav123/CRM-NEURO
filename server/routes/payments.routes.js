@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { query, withTransaction } from '../db.js';
+import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
 import { optionalChatbotRequest } from '../services/chatbotClient.js';
 import { crmWhere, getCrmKey } from '../utils/crm.js';
 
@@ -9,6 +10,7 @@ const VALID_PAYMENT_STATUSES = ['pending', 'reported', 'confirmed', 'failed', 'c
 router.get('/', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
+    await syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey: crmKey });
     const { whereSql, values } = buildPaymentFilters(req.query, crmKey);
     const result = await query(
       `SELECT

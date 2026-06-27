@@ -4,6 +4,7 @@ import { createAdminAction } from '../services/adminActions.js';
 import { assertChatbotSuccess, chatbotRequest, optionalChatbotRequest } from '../services/chatbotClient.js';
 import { sendManualLeadMessage } from '../services/messagesService.js';
 import { getSettings } from '../services/settingsService.js';
+import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
 import { crmWhere, getCrmKey } from '../utils/crm.js';
 import { requireUuid } from '../utils/ids.js';
 
@@ -59,6 +60,7 @@ const EDITABLE_COLUMNS = [
 router.get('/', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
+    await syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey: crmKey });
     const { whereSql, values } = buildLeadFilters(req.query, crmKey);
     const limit = clampNumber(req.query.limit, 1, 250, 100);
     const page = clampNumber(req.query.page, 1, 100000, 1);
