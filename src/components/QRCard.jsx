@@ -2,7 +2,7 @@ import { RefreshCw, Smartphone } from 'lucide-react';
 import { formatDate } from '../utils/formatDate';
 import { formatLeadPhone } from '../utils/formatPhone';
 
-export default function QRCard({ status, loading, onGenerate, onRefresh, onRestart, onLogout }) {
+export default function QRCard({ crm, status, loading, onGenerate, onRefresh, onRestart, onLogout }) {
   const qrSource = normalizeQrSource(status?.qr);
   const connected = status?.status === 'connected';
   const qrPending = status?.status === 'qr_pending';
@@ -32,7 +32,8 @@ export default function QRCard({ status, loading, onGenerate, onRefresh, onResta
           </span>
         </div>
 
-        <dl className="mt-6 grid gap-3 sm:grid-cols-3">
+        <dl className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Info label="CRM para nuevos leads" value={crm?.name || status?.active_crm_key || '-'} />
           <Info label="Numero / ID conectado" value={connectedIdentity} />
           <Info label="Ultima conexion" value={formatDate(status?.last_connected_at)} />
           <Info label="Ultimo QR" value={formatDate(status?.last_qr_at)} />

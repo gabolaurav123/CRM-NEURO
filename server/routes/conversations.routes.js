@@ -19,8 +19,13 @@ router.get('/', async (req, res, next) => {
            from_me,
            created_at
          FROM messages
-         WHERE lead_id IS NOT NULL
+         WHERE lead_id IS NOT NULL AND ${crmWhere()} = $1
          ORDER BY lead_id::TEXT, created_at DESC
+       ),
+       conversation_leads AS (
+         SELECT DISTINCT lead_id::TEXT AS lead_id
+         FROM conversations
+         WHERE lead_id IS NOT NULL AND ${crmWhere()} = $1
        )
        SELECT
          l.id AS lead_id,
@@ -41,6 +46,7 @@ router.get('/', async (req, res, next) => {
          lm.from_me AS last_from_me
        FROM leads l
        LEFT JOIN last_messages lm ON lm.lead_id = l.id::TEXT
+       LEFT JOIN conversation_leads cl ON cl.lead_id = l.id::TEXT
        ${whereSql}
        ORDER BY COALESCE(lm.created_at, l.last_contact_at, l.updated_at, l.created_at) DESC NULLS LAST
        LIMIT 150`,
@@ -100,7 +106,10 @@ router.post('/:leadId/send-message', async (req, res, next) => {
 });
 
 function buildConversationFilters(filters, crmKey) {
-  const where = [`${crmWhere('l')} = $1`];
+  const where = [
+    `${crmWhere('l')} = $1`,
+    `(lm.lead_id IS NOT NULL OR cl.lead_id IS NOT NULL OR l.last_user_message IS NOT NULL OR l.last_bot_message IS NOT NULL OR l.last_contact_at IS NOT NULL)`
+  ];
   const values = [crmKey];
   const add = (sql, value) => {
     values.push(value);
@@ -129,7 +138,7 @@ function buildConversationFilters(filters, crmKey) {
 
   if (filters.q) {
     values.push(`%${String(filters.q).trim()}%`);
-    where.push(`(l.name ILIKE $${values.length} OR l.phone ILIKE $${values.length} OR l.email ILIKE $${values.length} OR l.username ILIKE $${values.length} OR l.whatsapp_id ILIKE $${values.length} OR l.whatsapp_lid ILIKE $${values.length} OR l.display_phone ILIKE $${values.length})`);
+    where.push(`(l.name ILIKE $${values.length} OR l.phone ILIKE $${values.length} OR l.email ILIKE $${values.length} OR l.country ILIKE $${values.length} OR l.city ILIKE $${values.length} OR l.username ILIKE $${values.length} OR l.whatsapp_id ILIKE $${values.length} OR l.whatsapp_lid ILIKE $${values.length} OR l.display_phone ILIKE $${values.length})`);
   }
 
   return {

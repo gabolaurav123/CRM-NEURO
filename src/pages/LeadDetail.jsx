@@ -13,7 +13,7 @@ import { formatDate } from '../utils/formatDate';
 import { formatLeadPhone, getLeadPhoneDisplay, stripWhatsappSuffix } from '../utils/formatPhone';
 import { isUuid } from '../utils/ids';
 
-const editableKeys = ['name', 'phone', 'email', 'username', 'main_pain', 'urgency', 'lead_score', 'lead_status', 'funnel_stage', 'main_objection', 'payment_status'];
+const editableKeys = ['name', 'phone', 'email', 'country', 'city', 'username', 'main_pain', 'urgency', 'lead_score', 'lead_status', 'funnel_stage', 'main_objection', 'payment_status'];
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -171,6 +171,8 @@ export default function LeadDetail() {
                 ['WhatsApp LID', stripWhatsappSuffix(lead?.whatsapp_lid)],
                 ['Display phone', lead?.display_phone || formatLeadPhone(lead || {})],
                 ['Correo', lead?.email],
+                ['Pais', lead?.country],
+                ['Ciudad', lead?.city],
                 ['Usuario', lead?.username],
                 ['Canal', lead?.channel],
                 ['Palabra clave', lead?.source_keyword],
@@ -234,6 +236,8 @@ export default function LeadDetail() {
               <TextInput label="Nombre" value={form.name} onChange={(value) => setFormValue('name', value, setForm)} />
               <TextInput label="Telefono" value={form.phone} onChange={(value) => setFormValue('phone', value, setForm)} />
               <TextInput label="Correo" value={form.email} onChange={(value) => setFormValue('email', value, setForm)} />
+              <TextInput label="Pais" value={form.country} onChange={(value) => setFormValue('country', value, setForm)} />
+              <TextInput label="Ciudad" value={form.city} onChange={(value) => setFormValue('city', value, setForm)} />
               <TextInput label="Usuario" value={form.username} onChange={(value) => setFormValue('username', value, setForm)} />
               <TextInput label="Dolor principal" value={form.main_pain} onChange={(value) => setFormValue('main_pain', value, setForm)} />
               <div className="grid grid-cols-2 gap-3">

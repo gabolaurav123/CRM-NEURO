@@ -10,6 +10,8 @@ const __dirname = path.dirname(__filename);
 let pool;
 
 export const DEFAULT_SETTINGS = {
+  active_crm_key: 'neurotraumas',
+  whatsapp_active_crm_key: 'neurotraumas',
   product_name: process.env.PRODUCT_NAME || 'Neurotraumas(TM)',
   product_price: '360',
   hotmart_link: process.env.HOTMART_LINK || 'https://pay.hotmart.com/T103515864E',

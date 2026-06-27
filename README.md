@@ -38,6 +38,21 @@ Cuando se elige un CRM, el frontend envia `x-crm-key` al backend y el backend lo
 - `neurotraumas`
 - `holograficas`
 
+El chatbot tambien puede consultar el CRM activo para WhatsApp con:
+
+```http
+GET /api/internal/active-crm
+x-admin-api-key: ADMIN_API_KEY
+```
+
+Respuesta esperada:
+
+```json
+{ "crm_key": "holograficas", "crmKey": "holograficas", "active_crm_key": "holograficas", "whatsapp_active_crm_key": "holograficas" }
+```
+
+Cuando se genera o reinicia el QR desde Holograficas, el CRM guarda `bot_settings.whatsapp_active_crm_key=holograficas`. El chatbot debe usar ese valor al insertar `leads`, `messages`, `conversations`, `conversation_memory`, `followups` y `payments`.
+
 La API key de Gemini no se muestra, no se guarda y no se edita desde este CRM.
 
 El enlace principal de pago es Hotmart:
@@ -64,6 +79,7 @@ Para usuarios adicionales usa `ADMIN_EXTRA_USERS` con formato `usuario:hashBcryp
 - Holograficas: operacion separada dentro del mismo panel, con leads, conversaciones, pagos y follow-ups filtrados por `crm_key`.
 
 WhatsApp funciona como una sesion compartida hacia el mismo chatbot y el mismo numero. Si se desvincula o se vincula desde un CRM, el estado de WhatsApp queda reflejado en el panel, y el backend informa al chatbot cual CRM esta activo mediante `x-crm-key`.
+Para mensajes entrantes, el chatbot debe guardar usando el `whatsapp_active_crm_key` vigente. Si este valor es `holograficas`, los nuevos leads y mensajes entrantes deben escribirse con `crm_key='holograficas'`.
 
 ## Base de datos compartida
 

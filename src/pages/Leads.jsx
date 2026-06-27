@@ -11,6 +11,8 @@ const initialFilters = {
   name: '',
   phone: '',
   email: '',
+  country: '',
+  city: '',
   username: '',
   lead_status: '',
   funnel_stage: '',
@@ -130,6 +132,8 @@ export default function Leads() {
           <Input label="Nombre" value={filters.name} onChange={(value) => updateFilter('name', value)} />
           <Input label="Telefono" value={filters.phone} onChange={(value) => updateFilter('phone', value)} />
           <Input label="Correo" value={filters.email} onChange={(value) => updateFilter('email', value)} />
+          <Input label="Pais" value={filters.country} onChange={(value) => updateFilter('country', value)} />
+          <Input label="Ciudad" value={filters.city} onChange={(value) => updateFilter('city', value)} />
           <Input label="Usuario" value={filters.username} onChange={(value) => updateFilter('username', value)} />
           <Input label="Dolor" value={filters.main_pain} onChange={(value) => updateFilter('main_pain', value)} />
           <Select label="Estado" value={filters.lead_status} onChange={(value) => updateFilter('lead_status', value)} options={LEAD_STATUSES} />
@@ -202,6 +206,8 @@ function exportCsv(leads) {
     [(lead) => stripWhatsappSuffix(lead.whatsapp_lid), 'WhatsApp LID'],
     ['display_phone', 'Display phone'],
     ['email', 'Correo'],
+    ['country', 'Pais'],
+    ['city', 'Ciudad'],
     ['username', 'Usuario'],
     ['main_pain', 'Dolor principal'],
     ['urgency', 'Urgencia'],

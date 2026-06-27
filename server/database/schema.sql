@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS leads (
   display_phone TEXT,
   name TEXT,
   email TEXT,
+  country TEXT,
+  city TEXT,
   username TEXT,
   source_keyword TEXT,
   main_pain TEXT,
@@ -49,6 +51,8 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS whatsapp_lid TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS display_phone TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS country TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS city TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS username TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS source_keyword TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS main_pain TEXT;

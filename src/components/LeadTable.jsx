@@ -10,9 +10,9 @@ export default function LeadTable({ leads, loading, onAction }) {
   return (
     <div className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
       <div className="overflow-x-auto">
-        <table className="min-w-[1560px] w-full border-collapse text-left text-sm">
+        <table className="min-w-[1760px] w-full border-collapse text-left text-sm">
           <colgroup>
-            {Array.from({ length: 12 }).map((_, index) => <col key={index} />)}
+            {Array.from({ length: 14 }).map((_, index) => <col key={index} />)}
             <col style={{ width: 340 }} />
           </colgroup>
           <thead className="bg-slate-100 text-xs uppercase tracking-[0.08em] text-slate-500">
@@ -20,6 +20,8 @@ export default function LeadTable({ leads, loading, onAction }) {
               <Th>Nombre</Th>
               <Th>Celular</Th>
               <Th>Correo</Th>
+              <Th>Pais</Th>
+              <Th>Ciudad</Th>
               <Th>Usuario</Th>
               <Th>Dolor principal</Th>
               <Th>Urgencia</Th>
@@ -35,13 +37,13 @@ export default function LeadTable({ leads, loading, onAction }) {
           <tbody className="divide-y divide-line">
             {loading ? (
               <tr>
-                <td className="px-4 py-8 text-center text-slate-500" colSpan={13}>
+                <td className="px-4 py-8 text-center text-slate-500" colSpan={15}>
                   Cargando leads...
                 </td>
               </tr>
             ) : leads.length === 0 ? (
               <tr>
-                <td className="px-4 py-8 text-center text-slate-500" colSpan={13}>
+                <td className="px-4 py-8 text-center text-slate-500" colSpan={15}>
                   No hay leads con estos filtros.
                 </td>
               </tr>
@@ -56,6 +58,8 @@ export default function LeadTable({ leads, loading, onAction }) {
                     <PhoneCell lead={lead} />
                   </Td>
                   <Td>{lead.email || '-'}</Td>
+                  <Td>{lead.country || '-'}</Td>
+                  <Td>{lead.city || '-'}</Td>
                   <Td>{lead.username || '-'}</Td>
                   <Td>{lead.main_pain || '-'}</Td>
                   <Td>{lead.urgency ?? '-'}</Td>

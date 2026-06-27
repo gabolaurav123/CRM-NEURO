@@ -30,6 +30,8 @@ const EDITABLE_COLUMNS = [
   'phone',
   'name',
   'email',
+  'country',
+  'city',
   'username',
   'channel',
   'source_keyword',
@@ -242,10 +244,19 @@ router.post('/:id/delete-memory', async (req, res, next) => {
     if (lead.rowCount === 0) {
       return res.status(404).json({ error: 'LEAD_NOT_FOUND' });
     }
-    await query(`DELETE FROM conversation_memory WHERE lead_id::TEXT = $1 AND ${crmWhere()} = $2`, [leadId, crmKey]);
+    const memoryDelete = await query(`DELETE FROM conversation_memory WHERE lead_id::TEXT = $1 AND ${crmWhere()} = $2`, [leadId, crmKey]);
+    const leadUpdate = await query(
+      `UPDATE leads
+       SET memory_expires_at = NULL,
+           consent_24h = FALSE,
+           updated_at = NOW()
+       WHERE id::TEXT = $1 AND ${crmWhere()} = $2
+       RETURNING *`,
+      [leadId, crmKey]
+    );
     const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/delete-memory`, { method: 'POST', crmKey });
     await createAdminAction({ leadId, crmKey, action: 'memory_deleted', adminEmail: req.admin?.email });
-    res.json({ ok: true, chatbot });
+    res.json({ ok: true, deleted: { memory: memoryDelete.rowCount }, lead: leadUpdate.rows[0], chatbot });
   } catch (error) {
     next(error);
   }
@@ -380,6 +391,7 @@ async function resetLeadConversation(leadId, crmKey, adminEmail) {
            last_bot_message = NULL,
            last_contact_at = NULL,
            memory_expires_at = NULL,
+           consent_24h = FALSE,
            human_takeover = FALSE,
            bot_paused = FALSE,
            funnel_stage = 'inicio',
@@ -483,7 +495,7 @@ function buildLeadFilters(filters, crmKey) {
 
   if (filters.q) {
     values.push(`%${String(filters.q).trim()}%`);
-    where.push(`(name ILIKE $${values.length} OR phone ILIKE $${values.length} OR email ILIKE $${values.length} OR username ILIKE $${values.length} OR whatsapp_id ILIKE $${values.length} OR whatsapp_lid ILIKE $${values.length} OR display_phone ILIKE $${values.length})`);
+    where.push(`(name ILIKE $${values.length} OR phone ILIKE $${values.length} OR email ILIKE $${values.length} OR country ILIKE $${values.length} OR city ILIKE $${values.length} OR username ILIKE $${values.length} OR whatsapp_id ILIKE $${values.length} OR whatsapp_lid ILIKE $${values.length} OR display_phone ILIKE $${values.length})`);
   }
   if (filters.name) add('name ILIKE ?', `%${String(filters.name).trim()}%`);
   if (filters.phone) {
@@ -491,6 +503,8 @@ function buildLeadFilters(filters, crmKey) {
     where.push(`(phone ILIKE $${values.length} OR display_phone ILIKE $${values.length} OR whatsapp_id ILIKE $${values.length} OR whatsapp_lid ILIKE $${values.length})`);
   }
   if (filters.email) add('email ILIKE ?', `%${String(filters.email).trim()}%`);
+  if (filters.country) add('country ILIKE ?', `%${String(filters.country).trim()}%`);
+  if (filters.city) add('city ILIKE ?', `%${String(filters.city).trim()}%`);
   if (filters.username) add('username ILIKE ?', `%${String(filters.username).trim()}%`);
   if (filters.lead_status) add('lead_status = ?', String(filters.lead_status));
   if (filters.funnel_stage) add('funnel_stage = ?', String(filters.funnel_stage));

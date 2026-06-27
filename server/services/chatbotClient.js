@@ -15,15 +15,22 @@ export async function chatbotRequest(path, options = {}) {
     throw new ChatbotClientError('CHATBOT_API_URL or ADMIN_API_KEY is not configured', 503);
   }
 
-  const response = await fetch(`${baseUrl}${ensureLeadingSlash(path)}`, {
+  const requestPath = options.crmKey ? appendCrmQuery(ensureLeadingSlash(path), options.crmKey) : ensureLeadingSlash(path);
+  const response = await fetch(`${baseUrl}${requestPath}`, {
     method: options.method || 'GET',
     headers: {
       'content-type': 'application/json',
       'x-admin-api-key': adminKey,
-      ...(options.crmKey ? { 'x-crm-key': options.crmKey } : {}),
+      ...(options.crmKey
+        ? {
+            'x-crm-key': options.crmKey,
+            'x-active-crm-key': options.crmKey,
+            'x-whatsapp-active-crm-key': options.crmKey
+          }
+        : {}),
       ...(options.headers || {})
     },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: options.body ? JSON.stringify(withCrmBody(options.body, options.crmKey)) : undefined
   });
 
   const text = await response.text();
@@ -66,6 +73,23 @@ function normalizeBaseUrl(value) {
 
 function ensureLeadingSlash(value) {
   return value.startsWith('/') ? value : `/${value}`;
+}
+
+function appendCrmQuery(path, crmKey) {
+  const separator = path.includes('?') ? '&' : '?';
+  const encoded = encodeURIComponent(crmKey);
+  return `${path}${separator}crm_key=${encoded}&active_crm_key=${encoded}&whatsapp_active_crm_key=${encoded}`;
+}
+
+function withCrmBody(body, crmKey) {
+  if (!crmKey || !body || typeof body !== 'object' || Array.isArray(body)) return body;
+  return {
+    crm_key: crmKey,
+    crmKey,
+    active_crm_key: crmKey,
+    whatsapp_active_crm_key: crmKey,
+    ...body
+  };
 }
 
 function parseJson(text) {

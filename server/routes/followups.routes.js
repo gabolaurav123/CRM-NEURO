@@ -21,6 +21,8 @@ router.get('/', async (req, res, next) => {
          l.whatsapp_lid AS lead_whatsapp_lid,
          l.display_phone AS lead_display_phone,
          l.email AS lead_email,
+         l.country AS lead_country,
+         l.city AS lead_city,
          l.lead_status
        FROM followups f
        LEFT JOIN leads l ON f.lead_id::TEXT = l.id::TEXT
@@ -150,7 +152,7 @@ function buildFollowupFilters(filters, crmKey) {
 
   if (filters.q) {
     values.push(`%${String(filters.q).trim()}%`);
-    where.push(`(l.name ILIKE $${values.length} OR l.phone ILIKE $${values.length} OR l.whatsapp_id ILIKE $${values.length} OR l.whatsapp_lid ILIKE $${values.length} OR l.display_phone ILIKE $${values.length} OR f.message ILIKE $${values.length})`);
+    where.push(`(l.name ILIKE $${values.length} OR l.phone ILIKE $${values.length} OR l.email ILIKE $${values.length} OR l.country ILIKE $${values.length} OR l.city ILIKE $${values.length} OR l.whatsapp_id ILIKE $${values.length} OR l.whatsapp_lid ILIKE $${values.length} OR l.display_phone ILIKE $${values.length} OR f.message ILIKE $${values.length})`);
   }
 
   return {

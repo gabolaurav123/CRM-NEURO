@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureDatabaseSchema } from './db.js';
 import { requireAuth } from './middleware/auth.middleware.js';
+import { requireInternalApiKey } from './middleware/internal.middleware.js';
 import authRoutes from './routes/auth.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import leadsRoutes from './routes/leads.routes.js';
@@ -14,6 +15,7 @@ import whatsappRoutes from './routes/whatsapp.routes.js';
 import paymentsRoutes from './routes/payments.routes.js';
 import followupsRoutes from './routes/followups.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
+import internalRoutes from './routes/internal.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +40,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/internal', requireInternalApiKey, internalRoutes);
 app.use('/api/dashboard', requireAuth, dashboardRoutes);
 app.use('/api/leads', requireAuth, leadsRoutes);
 app.use('/api/conversations', requireAuth, conversationsRoutes);

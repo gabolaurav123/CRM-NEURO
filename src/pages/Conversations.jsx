@@ -82,6 +82,12 @@ export default function Conversations() {
     try {
       await leadsApi[name](selected.lead.id);
       setPendingAction(null);
+      if (name === 'deleteConversation') {
+        setSelected({ lead: null, messages: [] });
+        navigate('/conversations', { replace: true });
+        await loadList();
+        return;
+      }
       await loadConversation(selected.lead.id);
       await loadList();
     } catch (requestError) {

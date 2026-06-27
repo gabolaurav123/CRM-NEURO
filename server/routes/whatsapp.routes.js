@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { createAdminAction } from '../services/adminActions.js';
+import { activeCrmPayload, getActiveWhatsappCrm, setActiveWhatsappCrm } from '../services/activeCrmService.js';
 import { chatbotRequest } from '../services/chatbotClient.js';
 import { getCrmKey } from '../utils/crm.js';
 
@@ -12,7 +13,8 @@ router.get('/status', async (req, res, next) => {
     const payload = await chatbotRequest('/api/whatsapp/status', { crmKey });
     const status = normalizeWhatsappPayload(payload);
     await storeWhatsappSession(status, crmKey);
-    res.json(status);
+    const activeCrmKey = await getActiveWhatsappCrm();
+    res.json({ ...status, active_crm_key: activeCrmKey });
   } catch (error) {
     const fallback = await getLatestWhatsappSession().catch(() => null);
     if (fallback) {
@@ -29,10 +31,11 @@ router.get('/status', async (req, res, next) => {
 router.get('/qr', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
+    await setActiveWhatsappCrm(crmKey);
     const payload = await chatbotRequest('/api/whatsapp/qr', { crmKey });
     const status = normalizeWhatsappPayload(payload);
     await storeWhatsappSession(status, crmKey);
-    res.json(status);
+    res.json({ ...status, active_crm_key: crmKey });
   } catch (error) {
     const fallback = await getLatestWhatsappSession().catch(() => null);
     if (fallback?.qr) {
@@ -49,11 +52,12 @@ router.get('/qr', async (req, res, next) => {
 router.post('/generate-qr', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
-    const payload = await chatbotRequest('/api/whatsapp/generate-qr', { method: 'POST', crmKey });
+    await setActiveWhatsappCrm(crmKey);
+    const payload = await chatbotRequest('/api/whatsapp/generate-qr', { method: 'POST', crmKey, body: activeCrmPayload(crmKey) });
     const status = normalizeWhatsappPayload(payload, 'qr_pending');
     await storeWhatsappSession(status, crmKey);
-    await createAdminAction({ crmKey, action: 'whatsapp_generate_qr', details: { status: status.status }, adminEmail: req.admin?.email });
-    res.json(status);
+    await createAdminAction({ crmKey, action: 'whatsapp_generate_qr', details: { status: status.status, active_crm_key: crmKey }, adminEmail: req.admin?.email });
+    res.json({ ...status, active_crm_key: crmKey });
   } catch (error) {
     next(error);
   }
@@ -62,11 +66,12 @@ router.post('/generate-qr', async (req, res, next) => {
 router.post('/restart', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
-    const payload = await chatbotRequest('/api/whatsapp/restart', { method: 'POST', crmKey });
+    await setActiveWhatsappCrm(crmKey);
+    const payload = await chatbotRequest('/api/whatsapp/restart', { method: 'POST', crmKey, body: activeCrmPayload(crmKey) });
     const status = normalizeWhatsappPayload(payload, 'initializing');
     await storeWhatsappSession(status, crmKey);
-    await createAdminAction({ crmKey, action: 'whatsapp_restart', details: { status: status.status }, adminEmail: req.admin?.email });
-    res.json(status);
+    await createAdminAction({ crmKey, action: 'whatsapp_restart', details: { status: status.status, active_crm_key: crmKey }, adminEmail: req.admin?.email });
+    res.json({ ...status, active_crm_key: crmKey });
   } catch (error) {
     next(error);
   }
@@ -113,7 +118,7 @@ async function storeWhatsappSession(status, crmKey = 'neurotraumas') {
       status.qr || null,
       status.last_qr_at || null,
       status.last_connected_at || null,
-      { source: 'crm_proxy', raw: status.raw || null }
+      { source: 'crm_proxy', active_crm_key: crmKey, raw: status.raw || null }
     ]
   );
 }
@@ -121,6 +126,7 @@ async function storeWhatsappSession(status, crmKey = 'neurotraumas') {
 async function getLatestWhatsappSession() {
   const result = await query(
       `SELECT status,
+            crm_key AS active_crm_key,
             phone,
             whatsapp_id,
             display_phone,
@@ -135,6 +141,7 @@ async function getLatestWhatsappSession() {
 
   return result.rows[0] || {
     status: 'disconnected',
+    active_crm_key: 'neurotraumas',
     phone: '',
     whatsapp_id: '',
     display_phone: '',
