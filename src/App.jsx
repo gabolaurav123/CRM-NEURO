@@ -27,6 +27,8 @@ function AppRoutes() {
   const navigate = useNavigate();
   const [admin, setAdmin] = useState(null);
   const [crmKey, setCrmKey] = useState(getSelectedCrm());
+  const [activeCrmKey, setActiveCrmKey] = useState('');
+  const [loadingActiveCrm, setLoadingActiveCrm] = useState(false);
   const [activatingCrmKey, setActivatingCrmKey] = useState('');
   const [crmActivationError, setCrmActivationError] = useState('');
 
@@ -39,28 +41,29 @@ function AppRoutes() {
         clearSelectedCrm();
         setAdmin(null);
         setCrmKey(null);
+        setActiveCrmKey('');
       });
   }, []);
 
   useEffect(() => {
-    if (!getToken() || !crmKey) return undefined;
+    if (!getToken()) return undefined;
     let cancelled = false;
+    setLoadingActiveCrm(true);
     apiRequest('/whatsapp/active-crm')
       .then((payload) => {
         if (cancelled) return;
-        const activeCrmKey = payload.crm_key || payload.active_crm_key || payload.whatsapp_active_crm_key;
-        if (activeCrmKey && activeCrmKey !== crmKey) {
-          setSelectedCrm(activeCrmKey);
-          setCrmKey(activeCrmKey);
-        }
+        setActiveCrmKey(payload.crm_key || payload.active_crm_key || payload.whatsapp_active_crm_key || '');
       })
       .catch((error) => {
         if (!cancelled) setCrmActivationError(error.message || 'No se pudo leer el CRM activo para WhatsApp.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingActiveCrm(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [crmKey]);
+  }, [admin]);
 
   async function logout() {
     try {
@@ -72,20 +75,27 @@ function AppRoutes() {
     clearSelectedCrm();
     setAdmin(null);
     setCrmKey(null);
+    setActiveCrmKey('');
     navigate('/login', { replace: true });
   }
 
   async function chooseCrm(nextCrmKey) {
     setCrmActivationError('');
-    setActivatingCrmKey(nextCrmKey);
     setSelectedCrm(nextCrmKey);
+    setCrmKey(nextCrmKey);
+    navigate('/', { replace: true });
+  }
+
+  async function activateCrm(nextCrmKey) {
+    setCrmActivationError('');
+    setActivatingCrmKey(nextCrmKey);
     try {
-      await apiRequest('/whatsapp/activate-crm', { method: 'POST' });
-      setCrmKey(nextCrmKey);
-      navigate('/', { replace: true });
+      const payload = await apiRequest('/whatsapp/activate-crm', {
+        method: 'POST',
+        headers: { 'x-crm-key': nextCrmKey }
+      });
+      setActiveCrmKey(payload.crm_key || payload.active_crm_key || payload.whatsapp_active_crm_key || nextCrmKey);
     } catch (error) {
-      clearSelectedCrm();
-      setCrmKey(null);
       setCrmActivationError(error.message || 'No se pudo activar el CRM para WhatsApp.');
     } finally {
       setActivatingCrmKey('');
@@ -95,6 +105,7 @@ function AppRoutes() {
   function handleLogin(nextAdmin) {
     clearSelectedCrm();
     setCrmKey(null);
+    setActiveCrmKey('');
     setAdmin(nextAdmin);
   }
 
@@ -110,7 +121,18 @@ function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route
           path="select-crm"
-          element={<CrmSelect admin={admin} activatingCrmKey={activatingCrmKey} error={crmActivationError} onSelect={chooseCrm} onLogout={logout} />}
+          element={
+            <CrmSelect
+              admin={admin}
+              activeCrmKey={activeCrmKey}
+              loadingActiveCrm={loadingActiveCrm}
+              activatingCrmKey={activatingCrmKey}
+              error={crmActivationError}
+              onActivate={activateCrm}
+              onSelect={chooseCrm}
+              onLogout={logout}
+            />
+          }
         />
         <Route element={<RequireCrm crmKey={crmKey} />}>
           <Route element={<PrivateShell admin={admin} crmKey={crmKey} onChangeCrm={changeCrm} onLogout={logout} />}>
