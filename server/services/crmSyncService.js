@@ -1,9 +1,8 @@
 import { withTransaction } from '../db.js';
 import { getActiveWhatsappCrmDetails } from './activeCrmService.js';
-import { normalizeCrmKey } from '../utils/crm.js';
+import { LEGACY_CRM_KEY, normalizeCrmKey } from '../utils/crm.js';
 
-const DEFAULT_SYNC_HOURS = 168;
-const LEGACY_SOURCE_CRM_KEY = 'neurotraumas';
+const LEGACY_SOURCE_CRM_KEY = LEGACY_CRM_KEY;
 
 export async function syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey } = {}) {
   const active = await getActiveWhatsappCrmDetails();
@@ -14,7 +13,10 @@ export async function syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey } = {}
     return { skipped: true, active_crm_key: activeCrmKey, requested_crm_key: requested };
   }
 
-  const syncHours = clampSyncHours(process.env.CRM_ACTIVE_SYNC_HOURS);
+  const activeSince = active.startedAt || active.settingUpdatedAt;
+  if (!activeSince) {
+    return { skipped: true, active_crm_key: activeCrmKey, requested_crm_key: requested, reason: 'missing_active_since' };
+  }
 
   return withTransaction(async (client) => {
     const candidates = await client.query(
@@ -23,23 +25,8 @@ export async function syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey } = {}
          FROM leads l
          WHERE COALESCE(l.crm_key, $2) = $2
            AND (
-             l.created_at >= NOW() - ($3::INT * INTERVAL '1 hour')
-             OR l.first_contact_at >= NOW() - ($3::INT * INTERVAL '1 hour')
-             OR l.last_contact_at >= NOW() - ($3::INT * INTERVAL '1 hour')
-             OR EXISTS (
-               SELECT 1
-               FROM messages m
-               WHERE m.lead_id::TEXT = l.id::TEXT
-                 AND COALESCE(m.crm_key, $2) = $2
-                 AND m.created_at >= NOW() - ($3::INT * INTERVAL '1 hour')
-             )
-             OR EXISTS (
-               SELECT 1
-               FROM conversations c
-               WHERE c.lead_id::TEXT = l.id::TEXT
-                 AND COALESCE(c.crm_key, $2) = $2
-                 AND COALESCE(c.updated_at, c.last_activity_at, c.created_at) >= NOW() - ($3::INT * INTERVAL '1 hour')
-             )
+             l.created_at >= $3::TIMESTAMPTZ
+             OR l.first_contact_at >= $3::TIMESTAMPTZ
            )
            AND (
              NULLIF(l.whatsapp_id, '') IS NOT NULL
@@ -58,12 +45,12 @@ export async function syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey } = {}
        )
        SELECT COALESCE(ARRAY_AGG(lead_id), ARRAY[]::TEXT[]) AS lead_ids, COUNT(*)::INT AS total
        FROM updated_leads`,
-      [activeCrmKey, LEGACY_SOURCE_CRM_KEY, syncHours]
+      [activeCrmKey, LEGACY_SOURCE_CRM_KEY, activeSince]
     );
 
     const leadIds = candidates.rows[0]?.lead_ids || [];
     if (leadIds.length === 0) {
-      return { skipped: false, active_crm_key: activeCrmKey, moved: { leads: 0 }, sync_hours: syncHours };
+      return { skipped: false, active_crm_key: activeCrmKey, moved: { leads: 0 }, active_since: activeSince };
     }
 
     const messages = await client.query(
@@ -112,7 +99,7 @@ export async function syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey } = {}
     return {
       skipped: false,
       active_crm_key: activeCrmKey,
-      sync_hours: syncHours,
+      active_since: activeSince,
       moved: {
         leads: leadIds.length,
         messages: messages.rowCount,
@@ -124,10 +111,4 @@ export async function syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey } = {}
       }
     };
   });
-}
-
-function clampSyncHours(value) {
-  const parsed = Number(value || DEFAULT_SYNC_HOURS);
-  if (!Number.isFinite(parsed)) return DEFAULT_SYNC_HOURS;
-  return Math.min(720, Math.max(1, Math.floor(parsed)));
 }

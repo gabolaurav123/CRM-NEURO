@@ -21,7 +21,6 @@ ADMIN_API_KEY=
 PRODUCT_NAME=Neurotraumas(TM)
 HOTMART_LINK=https://pay.hotmart.com/T103515864E
 TIMEZONE=America/La_Paz
-CRM_ACTIVE_SYNC_HOURS=168
 ```
 
 No subas `.env` a GitHub. El archivo ya esta ignorado por `.gitignore`.
@@ -52,9 +51,9 @@ Respuesta esperada:
 { "crm_key": "holograficas", "crmKey": "holograficas", "active_crm_key": "holograficas", "whatsapp_active_crm_key": "holograficas" }
 ```
 
-Cuando se elige Holograficas en `/select-crm`, el CRM guarda `bot_settings.whatsapp_active_crm_key=holograficas`. Generar o reiniciar el QR desde Holograficas tambien actualiza ese valor. El chatbot debe usar ese valor al insertar `leads`, `messages`, `conversations`, `conversation_memory`, `followups` y `payments`.
+Cuando se elige una operacion en `/select-crm`, el CRM guarda `bot_settings.whatsapp_active_crm_key` en PostgreSQL. Ese valor queda activo aunque cierres la pagina o nadie tenga el panel abierto. Generar o reiniciar el QR desde una operacion tambien actualiza ese valor. El chatbot debe usar ese valor al insertar `leads`, `messages`, `conversations`, `conversation_memory`, `followups` y `payments`.
 
-Como proteccion adicional, cuando el panel abre Holograficas y WhatsApp activo tambien es Holograficas, el CRM mueve automaticamente hacia Holograficas los leads/mensajes recientes que el chatbot haya insertado por defecto en `neurotraumas`. La ventana por defecto es `CRM_ACTIVE_SYNC_HOURS=168`.
+Como proteccion adicional, si WhatsApp esta activo en Holograficas y el chatbot aun inserta por error en `neurotraumas`, el CRM solo mueve hacia Holograficas leads creados desde la activacion de Holograficas. No arrastra historicos de Neurotraumas.
 
 Para guardar datos estructurados desde el chatbot, usa:
 
@@ -124,6 +123,8 @@ El CRM lee y edita las tablas compartidas con `CHATBOT-NEURO`:
 `server/database/schema.sql` contiene migraciones idempotentes con `CREATE TABLE IF NOT EXISTS` y `ADD COLUMN IF NOT EXISTS`. No crea credenciales ni secretos.
 
 Las tablas operativas incluyen `crm_key` con valor por defecto `holograficas`. Si el chatbot inserta directo sin `crm_key`, PostgreSQL lo guardara en Holograficas.
+
+Los registros antiguos sin `crm_key` se tratan como `neurotraumas` para no mezclar historicos con Holograficas.
 
 ## Desarrollo local
 
@@ -196,6 +197,7 @@ Runtime: Node.js 20.
 - `GET /api/conversations/:leadId`
 - `POST /api/conversations/:leadId/send-message`
 - `GET /api/whatsapp/status`
+- `GET /api/whatsapp/active-crm`
 - `GET /api/whatsapp/qr`
 - `POST /api/whatsapp/generate-qr`
 - `POST /api/whatsapp/restart`

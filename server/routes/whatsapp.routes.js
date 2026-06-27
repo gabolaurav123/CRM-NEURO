@@ -1,12 +1,24 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { createAdminAction } from '../services/adminActions.js';
-import { activeCrmPayload, getActiveWhatsappCrm, setActiveWhatsappCrm } from '../services/activeCrmService.js';
+import { activeCrmPayload, getActiveWhatsappCrm, getActiveWhatsappCrmDetails, setActiveWhatsappCrm } from '../services/activeCrmService.js';
 import { chatbotRequest } from '../services/chatbotClient.js';
 import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
 import { getCrmKey } from '../utils/crm.js';
 
 const router = Router();
+
+router.get('/active-crm', async (req, res, next) => {
+  try {
+    const active = await getActiveWhatsappCrmDetails();
+    res.json({
+      ...activeCrmPayload(active.crmKey),
+      active_since: active.startedAt || active.settingUpdatedAt || null
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.post('/activate-crm', async (req, res, next) => {
   try {

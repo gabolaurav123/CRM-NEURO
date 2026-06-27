@@ -254,6 +254,15 @@ ALTER TABLE payments ALTER COLUMN crm_key SET DEFAULT 'holograficas';
 ALTER TABLE followups ALTER COLUMN crm_key SET DEFAULT 'holograficas';
 ALTER TABLE admin_actions ALTER COLUMN crm_key SET DEFAULT 'holograficas';
 
+UPDATE leads SET crm_key = 'neurotraumas' WHERE crm_key IS NULL;
+UPDATE conversations SET crm_key = 'neurotraumas' WHERE crm_key IS NULL;
+UPDATE messages SET crm_key = 'neurotraumas' WHERE crm_key IS NULL;
+UPDATE conversation_memory SET crm_key = 'neurotraumas' WHERE crm_key IS NULL;
+UPDATE whatsapp_sessions SET crm_key = 'neurotraumas' WHERE crm_key IS NULL;
+UPDATE payments SET crm_key = 'neurotraumas' WHERE crm_key IS NULL;
+UPDATE followups SET crm_key = 'neurotraumas' WHERE crm_key IS NULL;
+UPDATE admin_actions SET crm_key = 'neurotraumas' WHERE crm_key IS NULL;
+
 INSERT INTO bot_settings (key, value, value_type, updated_at)
 VALUES
   ('active_crm_key', 'holograficas', 'string', NOW()),
@@ -264,8 +273,11 @@ DO UPDATE SET
   value_type = 'string',
   updated_at = NOW()
 WHERE bot_settings.value IS NULL
-   OR bot_settings.value = ''
-   OR bot_settings.value = 'neurotraumas';
+   OR bot_settings.value = '';
+
+INSERT INTO bot_settings (key, value, value_type, updated_at)
+VALUES ('whatsapp_active_crm_started_at', NOW()::TEXT, 'datetime', NOW())
+ON CONFLICT (key) DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads (lead_status);
 CREATE INDEX IF NOT EXISTS idx_leads_crm_key ON leads (crm_key);

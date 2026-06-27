@@ -24,7 +24,7 @@ export default function CrmSelect({ admin, activatingCrmKey = '', error = '', on
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-teal-300">Seleccion de CRM</p>
             <h1 className="mt-3 text-3xl font-bold sm:text-5xl">Elige que operacion quieres ver</h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
-              Sesion activa: {admin?.email || 'admin'}. Es el mismo panel y el mismo enlace, con operaciones internas separadas. Al elegir una operacion, WhatsApp queda activo para guardar nuevos leads ahi.
+              Sesion activa: {admin?.email || 'admin'}. Es el mismo panel y el mismo enlace, con operaciones internas separadas. Al elegir una operacion, WhatsApp queda activo ahi para nuevos leads aunque cierres esta pagina.
             </p>
             {error ? <p className="mt-4 rounded-lg bg-rose-500/15 px-4 py-3 text-sm font-bold text-rose-100 ring-1 ring-rose-400/30">{error}</p> : null}
 

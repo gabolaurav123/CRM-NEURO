@@ -7,6 +7,15 @@ const ACTIVE_CRM_STARTED_AT_KEY = 'whatsapp_active_crm_started_at';
 export async function setActiveWhatsappCrm(crmKey, client = null) {
   const activeCrmKey = normalizeCrmKey(crmKey);
   const executor = client || { query };
+  const current = await executor.query(
+    `SELECT value
+     FROM bot_settings
+     WHERE key = ANY($1)
+     ORDER BY CASE key WHEN 'whatsapp_active_crm_key' THEN 0 ELSE 1 END
+     LIMIT 1`,
+    [ACTIVE_CRM_KEYS]
+  );
+  const previousCrmKey = current.rows[0]?.value ? normalizeCrmKey(current.rows[0].value) : null;
 
   for (const key of ACTIVE_CRM_KEYS) {
     await executor.query(
@@ -18,13 +27,16 @@ export async function setActiveWhatsappCrm(crmKey, client = null) {
     );
   }
 
-  await executor.query(
-    `INSERT INTO bot_settings (key, value, value_type, updated_at)
-     VALUES ($1, NOW()::TEXT, 'datetime', NOW())
-     ON CONFLICT (key)
-     DO UPDATE SET value = NOW()::TEXT, value_type = EXCLUDED.value_type, updated_at = NOW()`,
-    [ACTIVE_CRM_STARTED_AT_KEY]
-  );
+  const started = await executor.query('SELECT value FROM bot_settings WHERE key = $1 LIMIT 1', [ACTIVE_CRM_STARTED_AT_KEY]);
+  if (previousCrmKey !== activeCrmKey || !started.rows[0]?.value) {
+    await executor.query(
+      `INSERT INTO bot_settings (key, value, value_type, updated_at)
+       VALUES ($1, NOW()::TEXT, 'datetime', NOW())
+       ON CONFLICT (key)
+       DO UPDATE SET value = NOW()::TEXT, value_type = EXCLUDED.value_type, updated_at = NOW()`,
+      [ACTIVE_CRM_STARTED_AT_KEY]
+    );
+  }
 
   return activeCrmKey;
 }

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { activeCrmPayload, getActiveWhatsappCrm, setActiveWhatsappCrm } from '../services/activeCrmService.js';
 import { withTransaction } from '../db.js';
 import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
-import { DEFAULT_CRM_KEY, normalizeCrmKey } from '../utils/crm.js';
+import { LEGACY_CRM_KEY, normalizeCrmKey } from '../utils/crm.js';
 
 const router = Router();
 
@@ -75,7 +75,7 @@ async function upsertLead(crmKey, body) {
              updated_at = NOW()
          WHERE id::TEXT = $${values.length - 1} AND COALESCE(crm_key, $${values.length + 1}) = $${values.length}
          RETURNING *`,
-        [...values, DEFAULT_CRM_KEY]
+        [...values, LEGACY_CRM_KEY]
       );
       return updated.rows[0];
     }
@@ -105,7 +105,7 @@ async function findExistingLead(client, crmKey, payload) {
 
   if (checks.length === 0) return null;
 
-  const values = [crmKey, DEFAULT_CRM_KEY];
+  const values = [crmKey, LEGACY_CRM_KEY];
   const clauses = checks.map(([column, value]) => {
     values.push(String(value).trim());
     return `${column} = $${values.length}`;

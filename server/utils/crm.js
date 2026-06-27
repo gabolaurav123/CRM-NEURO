@@ -1,5 +1,6 @@
 export const VALID_CRM_KEYS = new Set(['neurotraumas', 'holograficas']);
 export const DEFAULT_CRM_KEY = 'holograficas';
+export const LEGACY_CRM_KEY = 'neurotraumas';
 
 export function getCrmKey(req) {
   const raw = req.headers['x-crm-key'] || req.query?.crm_key || req.query?.crm;
@@ -13,5 +14,5 @@ export function normalizeCrmKey(value) {
 
 export function crmWhere(alias = '') {
   const prefix = alias ? `${alias}.` : '';
-  return `COALESCE(${prefix}crm_key, '${DEFAULT_CRM_KEY}')`;
+  return `COALESCE(${prefix}crm_key, '${LEGACY_CRM_KEY}')`;
 }

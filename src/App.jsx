@@ -45,9 +45,18 @@ function AppRoutes() {
   useEffect(() => {
     if (!getToken() || !crmKey) return undefined;
     let cancelled = false;
-    apiRequest('/whatsapp/activate-crm', { method: 'POST' }).catch((error) => {
-      if (!cancelled) setCrmActivationError(error.message || 'No se pudo activar el CRM para WhatsApp.');
-    });
+    apiRequest('/whatsapp/active-crm')
+      .then((payload) => {
+        if (cancelled) return;
+        const activeCrmKey = payload.crm_key || payload.active_crm_key || payload.whatsapp_active_crm_key;
+        if (activeCrmKey && activeCrmKey !== crmKey) {
+          setSelectedCrm(activeCrmKey);
+          setCrmKey(activeCrmKey);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) setCrmActivationError(error.message || 'No se pudo leer el CRM activo para WhatsApp.');
+      });
     return () => {
       cancelled = true;
     };
