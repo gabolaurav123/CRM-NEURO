@@ -338,7 +338,7 @@ router.post('/:id/send-message', async (req, res, next) => {
   }
 });
 
-async function updateLeadFlags(leadId, updates, crmKey = 'neurotraumas') {
+async function updateLeadFlags(leadId, updates, crmKey = 'holograficas') {
   const id = requireUuid(leadId);
   const entries = Object.entries(updates);
   const assignments = entries.map(([key], index) => `${key} = $${index + 1}`);

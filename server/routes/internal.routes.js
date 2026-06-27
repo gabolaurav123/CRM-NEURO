@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { activeCrmPayload, getActiveWhatsappCrm, setActiveWhatsappCrm } from '../services/activeCrmService.js';
 import { withTransaction } from '../db.js';
 import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
-import { normalizeCrmKey } from '../utils/crm.js';
+import { DEFAULT_CRM_KEY, normalizeCrmKey } from '../utils/crm.js';
 
 const router = Router();
 
@@ -73,9 +73,9 @@ async function upsertLead(crmKey, body) {
          SET ${assignments.join(', ')},
              last_contact_at = NOW(),
              updated_at = NOW()
-         WHERE id::TEXT = $${values.length - 1} AND COALESCE(crm_key, 'neurotraumas') = $${values.length}
+         WHERE id::TEXT = $${values.length - 1} AND COALESCE(crm_key, $${values.length + 1}) = $${values.length}
          RETURNING *`,
-        values
+        [...values, DEFAULT_CRM_KEY]
       );
       return updated.rows[0];
     }
@@ -105,7 +105,7 @@ async function findExistingLead(client, crmKey, payload) {
 
   if (checks.length === 0) return null;
 
-  const values = [crmKey];
+  const values = [crmKey, DEFAULT_CRM_KEY];
   const clauses = checks.map(([column, value]) => {
     values.push(String(value).trim());
     return `${column} = $${values.length}`;
@@ -114,7 +114,7 @@ async function findExistingLead(client, crmKey, payload) {
   const result = await client.query(
     `SELECT *
      FROM leads
-     WHERE COALESCE(crm_key, 'neurotraumas') = $1
+     WHERE COALESCE(crm_key, $2) = $1
        AND (${clauses.join(' OR ')})
      ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
      LIMIT 1`,

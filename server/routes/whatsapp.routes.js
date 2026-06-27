@@ -123,7 +123,7 @@ function normalizeWhatsappPayload(payload, fallbackStatus = 'disconnected') {
   };
 }
 
-async function storeWhatsappSession(status, crmKey = 'neurotraumas') {
+async function storeWhatsappSession(status, crmKey = 'holograficas') {
   await query(
     `INSERT INTO whatsapp_sessions (status, crm_key, phone, whatsapp_id, display_phone, qr_code, last_qr_at, last_connected_at, updated_at, metadata)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)`,
@@ -159,7 +159,7 @@ async function getLatestWhatsappSession() {
 
   return result.rows[0] || {
     status: 'disconnected',
-    active_crm_key: 'neurotraumas',
+    active_crm_key: 'holograficas',
     phone: '',
     whatsapp_id: '',
     display_phone: '',

@@ -123,7 +123,7 @@ El CRM lee y edita las tablas compartidas con `CHATBOT-NEURO`:
 
 `server/database/schema.sql` contiene migraciones idempotentes con `CREATE TABLE IF NOT EXISTS` y `ADD COLUMN IF NOT EXISTS`. No crea credenciales ni secretos.
 
-Las tablas operativas incluyen `crm_key` con valor por defecto `neurotraumas` para mantener compatibilidad con datos ya existentes.
+Las tablas operativas incluyen `crm_key` con valor por defecto `holograficas`. Si el chatbot inserta directo sin `crm_key`, PostgreSQL lo guardara en Holograficas.
 
 ## Desarrollo local
 

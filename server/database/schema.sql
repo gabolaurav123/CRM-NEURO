@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS leads (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  crm_key TEXT DEFAULT 'neurotraumas',
+  crm_key TEXT DEFAULT 'holograficas',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   first_contact_at TIMESTAMPTZ,
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS leads (
 );
 
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
-ALTER TABLE leads ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'neurotraumas';
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'holograficas';
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS first_contact_at TIMESTAMPTZ;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_contact_at TIMESTAMPTZ;
@@ -77,7 +77,7 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS notes TEXT;
 
 CREATE TABLE IF NOT EXISTS conversations (
   id BIGSERIAL PRIMARY KEY,
-  crm_key TEXT DEFAULT 'neurotraumas',
+  crm_key TEXT DEFAULT 'holograficas',
   lead_id TEXT,
   status TEXT DEFAULT 'active',
   last_message TEXT,
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 );
 
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS lead_id TEXT;
-ALTER TABLE conversations ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'neurotraumas';
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'holograficas';
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_message TEXT;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ DEFAULT NOW();
@@ -96,7 +96,7 @@ ALTER TABLE conversations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAUL
 
 CREATE TABLE IF NOT EXISTS messages (
   id BIGSERIAL PRIMARY KEY,
-  crm_key TEXT DEFAULT 'neurotraumas',
+  crm_key TEXT DEFAULT 'holograficas',
   lead_id TEXT,
   conversation_id TEXT,
   direction TEXT,
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS lead_id TEXT;
-ALTER TABLE messages ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'neurotraumas';
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'holograficas';
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS conversation_id TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS direction TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS role TEXT;
@@ -123,7 +123,7 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW
 
 CREATE TABLE IF NOT EXISTS conversation_memory (
   id BIGSERIAL PRIMARY KEY,
-  crm_key TEXT DEFAULT 'neurotraumas',
+  crm_key TEXT DEFAULT 'holograficas',
   lead_id TEXT UNIQUE,
   memory JSONB DEFAULT '{}'::JSONB,
   summary TEXT,
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS conversation_memory (
 );
 
 ALTER TABLE conversation_memory ADD COLUMN IF NOT EXISTS lead_id TEXT;
-ALTER TABLE conversation_memory ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'neurotraumas';
+ALTER TABLE conversation_memory ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'holograficas';
 ALTER TABLE conversation_memory ADD COLUMN IF NOT EXISTS memory JSONB DEFAULT '{}'::JSONB;
 ALTER TABLE conversation_memory ADD COLUMN IF NOT EXISTS summary TEXT;
 ALTER TABLE conversation_memory ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
@@ -151,7 +151,7 @@ ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT
 
 CREATE TABLE IF NOT EXISTS whatsapp_sessions (
   id BIGSERIAL PRIMARY KEY,
-  crm_key TEXT DEFAULT 'neurotraumas',
+  crm_key TEXT DEFAULT 'holograficas',
   status TEXT DEFAULT 'disconnected',
   phone TEXT,
   whatsapp_id TEXT,
@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_sessions (
 );
 
 ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'disconnected';
-ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'neurotraumas';
+ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'holograficas';
 ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS whatsapp_id TEXT;
 ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS display_phone TEXT;
@@ -176,7 +176,7 @@ ALTER TABLE whatsapp_sessions ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{
 
 CREATE TABLE IF NOT EXISTS payments (
   id BIGSERIAL PRIMARY KEY,
-  crm_key TEXT DEFAULT 'neurotraumas',
+  crm_key TEXT DEFAULT 'holograficas',
   lead_id TEXT,
   status TEXT DEFAULT 'pending',
   amount NUMERIC(12, 2),
@@ -191,7 +191,7 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS lead_id TEXT;
-ALTER TABLE payments ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'neurotraumas';
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'holograficas';
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS amount NUMERIC(12, 2);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'USD';
@@ -205,7 +205,7 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW
 
 CREATE TABLE IF NOT EXISTS followups (
   id BIGSERIAL PRIMARY KEY,
-  crm_key TEXT DEFAULT 'neurotraumas',
+  crm_key TEXT DEFAULT 'holograficas',
   lead_id TEXT,
   type TEXT,
   message TEXT,
@@ -218,7 +218,7 @@ CREATE TABLE IF NOT EXISTS followups (
 );
 
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS lead_id TEXT;
-ALTER TABLE followups ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'neurotraumas';
+ALTER TABLE followups ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'holograficas';
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS type TEXT;
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS message TEXT;
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS scheduled_for TIMESTAMPTZ;
@@ -230,7 +230,7 @@ ALTER TABLE followups ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NO
 
 CREATE TABLE IF NOT EXISTS admin_actions (
   id BIGSERIAL PRIMARY KEY,
-  crm_key TEXT DEFAULT 'neurotraumas',
+  crm_key TEXT DEFAULT 'holograficas',
   lead_id TEXT,
   action TEXT NOT NULL,
   details JSONB DEFAULT '{}'::JSONB,
@@ -239,11 +239,33 @@ CREATE TABLE IF NOT EXISTS admin_actions (
 );
 
 ALTER TABLE admin_actions ADD COLUMN IF NOT EXISTS lead_id TEXT;
-ALTER TABLE admin_actions ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'neurotraumas';
+ALTER TABLE admin_actions ADD COLUMN IF NOT EXISTS crm_key TEXT DEFAULT 'holograficas';
 ALTER TABLE admin_actions ADD COLUMN IF NOT EXISTS action TEXT;
 ALTER TABLE admin_actions ADD COLUMN IF NOT EXISTS details JSONB DEFAULT '{}'::JSONB;
 ALTER TABLE admin_actions ADD COLUMN IF NOT EXISTS admin_email TEXT;
 ALTER TABLE admin_actions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+ALTER TABLE leads ALTER COLUMN crm_key SET DEFAULT 'holograficas';
+ALTER TABLE conversations ALTER COLUMN crm_key SET DEFAULT 'holograficas';
+ALTER TABLE messages ALTER COLUMN crm_key SET DEFAULT 'holograficas';
+ALTER TABLE conversation_memory ALTER COLUMN crm_key SET DEFAULT 'holograficas';
+ALTER TABLE whatsapp_sessions ALTER COLUMN crm_key SET DEFAULT 'holograficas';
+ALTER TABLE payments ALTER COLUMN crm_key SET DEFAULT 'holograficas';
+ALTER TABLE followups ALTER COLUMN crm_key SET DEFAULT 'holograficas';
+ALTER TABLE admin_actions ALTER COLUMN crm_key SET DEFAULT 'holograficas';
+
+INSERT INTO bot_settings (key, value, value_type, updated_at)
+VALUES
+  ('active_crm_key', 'holograficas', 'string', NOW()),
+  ('whatsapp_active_crm_key', 'holograficas', 'string', NOW())
+ON CONFLICT (key)
+DO UPDATE SET
+  value = 'holograficas',
+  value_type = 'string',
+  updated_at = NOW()
+WHERE bot_settings.value IS NULL
+   OR bot_settings.value = ''
+   OR bot_settings.value = 'neurotraumas';
 
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads (lead_status);
 CREATE INDEX IF NOT EXISTS idx_leads_crm_key ON leads (crm_key);

@@ -3,7 +3,7 @@ import { assertChatbotSuccess, chatbotRequest } from './chatbotClient.js';
 import { crmWhere } from '../utils/crm.js';
 import { requireUuid } from '../utils/ids.js';
 
-export async function sendManualLeadMessage({ leadId, message, crmKey = 'neurotraumas', adminEmail }) {
+export async function sendManualLeadMessage({ leadId, message, crmKey = 'holograficas', adminEmail }) {
   const id = requireUuid(leadId);
   const text = String(message || '').trim();
 

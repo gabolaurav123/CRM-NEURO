@@ -67,7 +67,7 @@ router.post('/:id/send-now', async (req, res, next) => {
   }
 });
 
-async function updateFollowup(followupId, body, adminEmail, crmKey = 'neurotraumas') {
+async function updateFollowup(followupId, body, adminEmail, crmKey = 'holograficas') {
   const editable = ['status', 'scheduled_for', 'scheduled_at', 'sent_at', 'message', 'type'];
   const updates = Object.fromEntries(Object.entries(body).filter(([key]) => editable.includes(key)));
 

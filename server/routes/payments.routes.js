@@ -54,7 +54,7 @@ router.patch('/:id', async (req, res, next) => {
   }
 });
 
-async function updatePayment(paymentId, body, adminEmail, crmKey = 'neurotraumas') {
+async function updatePayment(paymentId, body, adminEmail, crmKey = 'holograficas') {
   return withTransaction(async (client) => {
     const editable = ['status', 'amount', 'currency', 'provider', 'link', 'reported_by_user', 'manually_confirmed'];
     const updates = Object.fromEntries(Object.entries(body).filter(([key]) => editable.includes(key)));

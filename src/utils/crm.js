@@ -13,7 +13,7 @@ export const CRM_OPTIONS = [
   }
 ];
 
-export const DEFAULT_CRM_KEY = 'neurotraumas';
+export const DEFAULT_CRM_KEY = 'holograficas';
 
 export function normalizeCrmKey(value) {
   const key = String(value || '').trim().toLowerCase();

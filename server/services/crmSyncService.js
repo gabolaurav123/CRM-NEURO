@@ -1,15 +1,16 @@
 import { withTransaction } from '../db.js';
 import { getActiveWhatsappCrmDetails } from './activeCrmService.js';
-import { DEFAULT_CRM_KEY, normalizeCrmKey } from '../utils/crm.js';
+import { normalizeCrmKey } from '../utils/crm.js';
 
 const DEFAULT_SYNC_HOURS = 168;
+const LEGACY_SOURCE_CRM_KEY = 'neurotraumas';
 
 export async function syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey } = {}) {
   const active = await getActiveWhatsappCrmDetails();
   const activeCrmKey = normalizeCrmKey(active.crmKey);
   const requested = requestedCrmKey ? normalizeCrmKey(requestedCrmKey) : activeCrmKey;
 
-  if (activeCrmKey === DEFAULT_CRM_KEY || requested !== activeCrmKey) {
+  if (activeCrmKey === LEGACY_SOURCE_CRM_KEY || requested !== activeCrmKey) {
     return { skipped: true, active_crm_key: activeCrmKey, requested_crm_key: requested };
   }
 
@@ -57,7 +58,7 @@ export async function syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey } = {}
        )
        SELECT COALESCE(ARRAY_AGG(lead_id), ARRAY[]::TEXT[]) AS lead_ids, COUNT(*)::INT AS total
        FROM updated_leads`,
-      [activeCrmKey, DEFAULT_CRM_KEY, syncHours]
+      [activeCrmKey, LEGACY_SOURCE_CRM_KEY, syncHours]
     );
 
     const leadIds = candidates.rows[0]?.lead_ids || [];
@@ -75,37 +76,37 @@ export async function syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey } = {}
              SELECT id::TEXT FROM conversations WHERE lead_id::TEXT = ANY($3::TEXT[])
            )
          )`,
-      [activeCrmKey, DEFAULT_CRM_KEY, leadIds]
+      [activeCrmKey, LEGACY_SOURCE_CRM_KEY, leadIds]
     );
     const conversations = await client.query(
       `UPDATE conversations
        SET crm_key = $1, updated_at = NOW()
        WHERE COALESCE(crm_key, $2) = $2 AND lead_id::TEXT = ANY($3::TEXT[])`,
-      [activeCrmKey, DEFAULT_CRM_KEY, leadIds]
+      [activeCrmKey, LEGACY_SOURCE_CRM_KEY, leadIds]
     );
     const memory = await client.query(
       `UPDATE conversation_memory
        SET crm_key = $1, updated_at = NOW()
        WHERE COALESCE(crm_key, $2) = $2 AND lead_id::TEXT = ANY($3::TEXT[])`,
-      [activeCrmKey, DEFAULT_CRM_KEY, leadIds]
+      [activeCrmKey, LEGACY_SOURCE_CRM_KEY, leadIds]
     );
     const payments = await client.query(
       `UPDATE payments
        SET crm_key = $1, updated_at = NOW()
        WHERE COALESCE(crm_key, $2) = $2 AND lead_id::TEXT = ANY($3::TEXT[])`,
-      [activeCrmKey, DEFAULT_CRM_KEY, leadIds]
+      [activeCrmKey, LEGACY_SOURCE_CRM_KEY, leadIds]
     );
     const followups = await client.query(
       `UPDATE followups
        SET crm_key = $1, updated_at = NOW()
        WHERE COALESCE(crm_key, $2) = $2 AND lead_id::TEXT = ANY($3::TEXT[])`,
-      [activeCrmKey, DEFAULT_CRM_KEY, leadIds]
+      [activeCrmKey, LEGACY_SOURCE_CRM_KEY, leadIds]
     );
     const actions = await client.query(
       `UPDATE admin_actions
        SET crm_key = $1
        WHERE COALESCE(crm_key, $2) = $2 AND lead_id = ANY($3::TEXT[])`,
-      [activeCrmKey, DEFAULT_CRM_KEY, leadIds]
+      [activeCrmKey, LEGACY_SOURCE_CRM_KEY, leadIds]
     );
 
     return {
