@@ -1,6 +1,6 @@
 # CRM Neurotraumas
 
-CRM web privado para administrar leads, conversaciones, pagos, follow-ups, configuracion visible del bot y vinculacion de WhatsApp por QR. Despues del login permite elegir entre los CRMs `Neurotraumas` y `Holograficas`.
+CRM web privado para administrar leads, conversaciones, pagos, follow-ups, configuracion visible del bot y vinculacion de WhatsApp por QR. Es un solo panel y un solo enlace; despues del login permite elegir la operacion interna `Neurotraumas` o `Holograficas`.
 
 El CRM usa React + Vite + TailwindCSS en frontend y Express + PostgreSQL en backend. Express sirve el `dist` generado por Vite en produccion.
 
@@ -52,7 +52,7 @@ Respuesta esperada:
 { "crm_key": "holograficas", "crmKey": "holograficas", "active_crm_key": "holograficas", "whatsapp_active_crm_key": "holograficas" }
 ```
 
-Cuando se genera o reinicia el QR desde Holograficas, el CRM guarda `bot_settings.whatsapp_active_crm_key=holograficas`. El chatbot debe usar ese valor al insertar `leads`, `messages`, `conversations`, `conversation_memory`, `followups` y `payments`.
+Cuando se elige Holograficas en `/select-crm`, el CRM guarda `bot_settings.whatsapp_active_crm_key=holograficas`. Generar o reiniciar el QR desde Holograficas tambien actualiza ese valor. El chatbot debe usar ese valor al insertar `leads`, `messages`, `conversations`, `conversation_memory`, `followups` y `payments`.
 
 Como proteccion adicional, cuando el panel abre Holograficas y WhatsApp activo tambien es Holograficas, el CRM mueve automaticamente hacia Holograficas los leads/mensajes recientes que el chatbot haya insertado por defecto en `neurotraumas`. La ventana por defecto es `CRM_ACTIVE_SYNC_HOURS=168`.
 
@@ -99,10 +99,10 @@ Configura:
 
 Para usuarios adicionales usa `ADMIN_EXTRA_USERS` con formato `usuario:hashBcrypt`, separado por comas si hay mas de uno. El usuario `NEUROTRAUMA` queda configurado con hash bcrypt en `.env.example`; en Seenode debes crear esa misma variable de entorno para habilitarlo.
 
-## CRMs disponibles
+## Operaciones internas
 
 - Neurotraumas: operacion actual con el logo NTR y datos existentes.
-- Holograficas: operacion separada dentro del mismo panel, con leads, conversaciones, pagos y follow-ups filtrados por `crm_key`.
+- Holograficas: operacion dentro del mismo panel, con leads, conversaciones, pagos y follow-ups filtrados por `crm_key`.
 
 WhatsApp funciona como una sesion compartida hacia el mismo chatbot y el mismo numero. Si se desvincula o se vincula desde un CRM, el estado de WhatsApp queda reflejado en el panel, y el backend informa al chatbot cual CRM esta activo mediante `x-crm-key`.
 Para mensajes entrantes, el chatbot debe guardar usando el `whatsapp_active_crm_key` vigente. Si este valor es `holograficas`, los nuevos leads y mensajes entrantes deben escribirse con `crm_key='holograficas'`.

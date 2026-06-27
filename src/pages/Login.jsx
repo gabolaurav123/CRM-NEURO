@@ -39,7 +39,7 @@ export default function Login({ onLogin }) {
           </div>
           <h1 className="mt-6 max-w-2xl text-4xl font-bold leading-tight sm:text-5xl">CRM privado</h1>
           <p className="mt-4 max-w-xl text-lg leading-8 text-slate-300">
-            Administracion privada para elegir y operar los CRMs disponibles, con conversaciones, pagos, follow-ups y vinculacion de WhatsApp.
+            Administracion privada para elegir y operar Neurotraumas u Holograficas dentro del mismo panel, con conversaciones, pagos, follow-ups y vinculacion de WhatsApp.
           </p>
         </section>
 

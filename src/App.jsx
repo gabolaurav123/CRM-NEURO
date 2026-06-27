@@ -27,6 +27,8 @@ function AppRoutes() {
   const navigate = useNavigate();
   const [admin, setAdmin] = useState(null);
   const [crmKey, setCrmKey] = useState(getSelectedCrm());
+  const [activatingCrmKey, setActivatingCrmKey] = useState('');
+  const [crmActivationError, setCrmActivationError] = useState('');
 
   useEffect(() => {
     if (!getToken()) return;
@@ -39,6 +41,17 @@ function AppRoutes() {
         setCrmKey(null);
       });
   }, []);
+
+  useEffect(() => {
+    if (!getToken() || !crmKey) return undefined;
+    let cancelled = false;
+    apiRequest('/whatsapp/activate-crm', { method: 'POST' }).catch((error) => {
+      if (!cancelled) setCrmActivationError(error.message || 'No se pudo activar el CRM para WhatsApp.');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [crmKey]);
 
   async function logout() {
     try {
@@ -53,10 +66,21 @@ function AppRoutes() {
     navigate('/login', { replace: true });
   }
 
-  function chooseCrm(nextCrmKey) {
+  async function chooseCrm(nextCrmKey) {
+    setCrmActivationError('');
+    setActivatingCrmKey(nextCrmKey);
     setSelectedCrm(nextCrmKey);
-    setCrmKey(nextCrmKey);
-    navigate('/', { replace: true });
+    try {
+      await apiRequest('/whatsapp/activate-crm', { method: 'POST' });
+      setCrmKey(nextCrmKey);
+      navigate('/', { replace: true });
+    } catch (error) {
+      clearSelectedCrm();
+      setCrmKey(null);
+      setCrmActivationError(error.message || 'No se pudo activar el CRM para WhatsApp.');
+    } finally {
+      setActivatingCrmKey('');
+    }
   }
 
   function handleLogin(nextAdmin) {
@@ -75,7 +99,10 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login onLogin={handleLogin} />} />
       <Route element={<ProtectedRoute />}>
-        <Route path="select-crm" element={<CrmSelect admin={admin} onSelect={chooseCrm} onLogout={logout} />} />
+        <Route
+          path="select-crm"
+          element={<CrmSelect admin={admin} activatingCrmKey={activatingCrmKey} error={crmActivationError} onSelect={chooseCrm} onLogout={logout} />}
+        />
         <Route element={<RequireCrm crmKey={crmKey} />}>
           <Route element={<PrivateShell admin={admin} crmKey={crmKey} onChangeCrm={changeCrm} onLogout={logout} />}>
           <Route index element={<Dashboard />} />

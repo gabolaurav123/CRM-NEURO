@@ -3,9 +3,27 @@ import { query } from '../db.js';
 import { createAdminAction } from '../services/adminActions.js';
 import { activeCrmPayload, getActiveWhatsappCrm, setActiveWhatsappCrm } from '../services/activeCrmService.js';
 import { chatbotRequest } from '../services/chatbotClient.js';
+import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
 import { getCrmKey } from '../utils/crm.js';
 
 const router = Router();
+
+router.post('/activate-crm', async (req, res, next) => {
+  try {
+    const crmKey = getCrmKey(req);
+    await setActiveWhatsappCrm(crmKey);
+    const sync = await syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey: crmKey });
+    await createAdminAction({
+      crmKey,
+      action: 'whatsapp_active_crm_changed',
+      details: { active_crm_key: crmKey, sync },
+      adminEmail: req.admin?.email
+    });
+    res.json({ ...activeCrmPayload(crmKey), sync });
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.get('/status', async (req, res, next) => {
   try {
