@@ -105,7 +105,7 @@ export async function syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey } = {}
     const actions = await client.query(
       `UPDATE admin_actions
        SET crm_key = $1
-       WHERE COALESCE(crm_key, $2) = $2 AND lead_id = ANY($3::TEXT[])`,
+       WHERE COALESCE(crm_key, $2) = $2 AND lead_id::TEXT = ANY($3::TEXT[])`,
       [activeCrmKey, LEGACY_SOURCE_CRM_KEY, leadIds]
     );
 
