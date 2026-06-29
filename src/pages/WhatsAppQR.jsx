@@ -42,7 +42,7 @@ export default function WhatsAppQR() {
     setError('');
     try {
       const payload = await whatsappApi.generateQr();
-      if (payload.status !== 'connected' && !payload.qr) {
+      if (!payload.qr) {
         const qr = await whatsappApi.qr();
         setStatus((current) => ({ ...current, ...payload, ...qr }));
       } else {

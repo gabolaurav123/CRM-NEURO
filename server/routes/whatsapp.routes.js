@@ -61,12 +61,8 @@ router.get('/status', async (req, res, next) => {
 router.get('/qr', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
-    const connected = await getCurrentConnectedWhatsappStatus(crmKey);
-    if (connected && hasWhatsappIdentity(connected)) {
-      return res.json({ ...connected, active_crm_key: crmKey, already_connected: true });
-    }
-    const payload = await chatbotRequest('/api/whatsapp/qr', { crmKey });
-    const status = normalizeEmptyConnectedStatus(normalizeWhatsappPayload(payload));
+    const payload = await chatbotRequest('/api/whatsapp/qr?force_qr=true&force=true', { crmKey });
+    const status = normalizeQrPayload(payload);
     await storeWhatsappSession(status, crmKey);
     res.json({ ...status, active_crm_key: crmKey });
   } catch (error) {
@@ -86,13 +82,17 @@ router.post('/generate-qr', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
     await setActiveWhatsappCrm(crmKey);
-    const connected = await getCurrentConnectedWhatsappStatus(crmKey);
-    if (connected && hasWhatsappIdentity(connected)) {
-      await createAdminAction({ crmKey, action: 'whatsapp_generate_qr_skipped_connected', details: { active_crm_key: crmKey }, adminEmail: req.admin?.email });
-      return res.json({ ...connected, active_crm_key: crmKey, already_connected: true });
-    }
-    const payload = await chatbotRequest('/api/whatsapp/generate-qr', { method: 'POST', crmKey, body: activeCrmPayload(crmKey) });
-    const status = normalizeEmptyConnectedStatus(normalizeWhatsappPayload(payload, 'qr_pending'));
+    const payload = await chatbotRequest('/api/whatsapp/generate-qr?force_qr=true&force=true', {
+      method: 'POST',
+      crmKey,
+      body: {
+        ...activeCrmPayload(crmKey),
+        force: true,
+        force_qr: true,
+        forceQr: true
+      }
+    });
+    const status = normalizeQrPayload(payload);
     await storeWhatsappSession(status, crmKey);
     await createAdminAction({ crmKey, action: 'whatsapp_generate_qr', details: { status: status.status, active_crm_key: crmKey }, adminEmail: req.admin?.email });
     res.json({ ...status, active_crm_key: crmKey });
@@ -186,16 +186,6 @@ async function keepConnectedUnlessManualLogout(status) {
   };
 }
 
-async function getCurrentConnectedWhatsappStatus(crmKey) {
-  try {
-    const payload = await chatbotRequest('/api/whatsapp/status', { crmKey });
-    const status = normalizeWhatsappPayload(payload);
-    return status.status === 'connected' ? status : null;
-  } catch {
-    return null;
-  }
-}
-
 function hasWhatsappIdentity(status) {
   return Boolean(status?.phone || status?.whatsapp_id || status?.display_phone);
 }
@@ -252,6 +242,24 @@ function normalizeEmptyConnectedStatus(status) {
     ...status,
     status: 'disconnected',
     warning: 'El chatbot reporto conectado sin numero ni ID; se requiere QR para confirmar la vinculacion.'
+  };
+}
+
+function normalizeQrPayload(payload) {
+  const status = normalizeWhatsappPayload(payload, 'qr_pending');
+  if (status.qr) {
+    return {
+      ...status,
+      status: 'qr_pending'
+    };
+  }
+
+  return {
+    ...status,
+    status: status.status === 'connected' ? 'qr_pending' : status.status,
+    warning: status.status === 'connected'
+      ? 'El chatbot reporto conectado, pero no devolvio QR ni confirmacion util de vinculacion.'
+      : status.warning
   };
 }
 
