@@ -41,7 +41,7 @@ router.get('/status', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
     const payload = await chatbotRequest('/api/whatsapp/status', { crmKey });
-    const status = normalizeWhatsappPayload(payload);
+    const status = await keepConnectedUnlessManualLogout(normalizeWhatsappPayload(payload));
     await storeWhatsappSession(status, crmKey);
     const activeCrmKey = await getActiveWhatsappCrm();
     res.json({ ...status, active_crm_key: activeCrmKey });
@@ -61,7 +61,10 @@ router.get('/status', async (req, res, next) => {
 router.get('/qr', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
-    await setActiveWhatsappCrm(crmKey);
+    const connected = await getLatestConnectedWhatsappSession();
+    if (connected) {
+      return res.json({ ...connected, active_crm_key: crmKey, already_connected: true });
+    }
     const payload = await chatbotRequest('/api/whatsapp/qr', { crmKey });
     const status = normalizeWhatsappPayload(payload);
     await storeWhatsappSession(status, crmKey);
@@ -83,6 +86,11 @@ router.post('/generate-qr', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
     await setActiveWhatsappCrm(crmKey);
+    const connected = await getLatestConnectedWhatsappSession();
+    if (connected) {
+      await createAdminAction({ crmKey, action: 'whatsapp_generate_qr_skipped_connected', details: { active_crm_key: crmKey }, adminEmail: req.admin?.email });
+      return res.json({ ...connected, active_crm_key: crmKey, already_connected: true });
+    }
     const payload = await chatbotRequest('/api/whatsapp/generate-qr', { method: 'POST', crmKey, body: activeCrmPayload(crmKey) });
     const status = normalizeWhatsappPayload(payload, 'qr_pending');
     await storeWhatsappSession(status, crmKey);
@@ -122,8 +130,9 @@ router.post('/logout', async (req, res, next) => {
 
 function normalizeWhatsappPayload(payload, fallbackStatus = 'disconnected') {
   const data = payload?.data || payload || {};
+  const status = normalizeWhatsappStatus(data.status || data.connectionStatus || data.state || fallbackStatus);
   return {
-    status: data.status || data.connectionStatus || data.state || fallbackStatus,
+    status,
     phone: data.phone || data.number || data.connectedNumber || '',
     whatsapp_id: data.whatsapp_id || data.whatsappId || data.id || data.user?.id || '',
     display_phone: data.display_phone || data.displayPhone || data.displayNumber || '',
@@ -136,6 +145,7 @@ function normalizeWhatsappPayload(payload, fallbackStatus = 'disconnected') {
 }
 
 async function storeWhatsappSession(status, crmKey = 'holograficas') {
+  const connectedAt = status.last_connected_at || (status.status === 'connected' ? new Date().toISOString() : null);
   await query(
     `INSERT INTO whatsapp_sessions (status, crm_key, phone, whatsapp_id, display_phone, qr_code, last_qr_at, last_connected_at, updated_at, metadata)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)`,
@@ -147,10 +157,55 @@ async function storeWhatsappSession(status, crmKey = 'holograficas') {
       status.display_phone || null,
       status.qr || null,
       status.last_qr_at || null,
-      status.last_connected_at || null,
+      connectedAt,
       { source: 'crm_proxy', active_crm_key: crmKey, raw: status.raw || null }
     ]
   );
+}
+
+async function keepConnectedUnlessManualLogout(status) {
+  if (status.status !== 'disconnected') return status;
+  if (status.phone || status.whatsapp_id || status.display_phone || status.qr) return status;
+
+  const connected = await getLatestConnectedWhatsappSession();
+  if (!connected) return status;
+
+  return {
+    ...connected,
+    status: 'connected',
+    raw: status.raw,
+    warning: 'El chatbot reporto un cierre pasivo, se conserva la sesion conectada hasta desconexion manual.'
+  };
+}
+
+function normalizeWhatsappStatus(value) {
+  if (value === true) return 'connected';
+  if (value === false) return 'disconnected';
+  const status = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (['connected', 'open', 'ready', 'authenticated', 'logged_in', 'loggedin', 'online', 'paired', 'working'].includes(status)) return 'connected';
+  if (['qr', 'qrcode', 'qr_code', 'qr_pending', 'pending_qr', 'scan_qr', 'pairing'].includes(status)) return 'qr_pending';
+  if (['initializing', 'loading', 'connecting', 'reconnecting', 'starting', 'opening'].includes(status)) return 'initializing';
+  if (['disconnected', 'disconnect', 'closed', 'close', 'logged_out', 'logout', 'not_connected', 'unpaired'].includes(status)) return 'disconnected';
+  return status || 'disconnected';
+}
+
+async function getLatestConnectedWhatsappSession() {
+  const result = await query(
+      `SELECT status,
+            crm_key AS active_crm_key,
+            phone,
+            whatsapp_id,
+            display_phone,
+            qr_code AS qr,
+            last_qr_at,
+            last_connected_at,
+            updated_at
+     FROM whatsapp_sessions
+     WHERE status = 'connected'
+     ORDER BY updated_at DESC NULLS LAST, id DESC
+     LIMIT 1`
+  );
+  return result.rows[0] || null;
 }
 
 async function getLatestWhatsappSession() {

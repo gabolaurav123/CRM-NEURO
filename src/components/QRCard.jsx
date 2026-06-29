@@ -40,10 +40,10 @@ export default function QRCard({ crm, status, loading, onGenerate, onRefresh, on
         </dl>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <button className="rounded-lg bg-ink px-4 py-2 text-sm font-bold text-white hover:bg-slate-700" onClick={onGenerate} disabled={loading}>
+          <button className="rounded-lg bg-ink px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60" onClick={onGenerate} disabled={loading || connected}>
             Generar QR
           </button>
-          <button className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50" onClick={onGenerate} disabled={loading}>
+          <button className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" onClick={onGenerate} disabled={loading || connected}>
             Regenerar QR
           </button>
           <button className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50" onClick={onRefresh} disabled={loading}>

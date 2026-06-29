@@ -30,10 +30,6 @@ export default function WhatsAppQR() {
     try {
       const payload = await whatsappApi.status();
       setStatus((current) => ({ ...current, ...payload }));
-      if (payload.status === 'qr_pending' && !payload.qr) {
-        const qr = await whatsappApi.qr();
-        setStatus((current) => ({ ...current, ...qr }));
-      }
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -45,7 +41,13 @@ export default function WhatsAppQR() {
     setLoading(true);
     setError('');
     try {
-      setStatus(await whatsappApi.generateQr());
+      const payload = await whatsappApi.generateQr();
+      if (payload.status === 'qr_pending' && !payload.qr) {
+        const qr = await whatsappApi.qr();
+        setStatus((current) => ({ ...current, ...payload, ...qr }));
+      } else {
+        setStatus(payload);
+      }
     } catch (requestError) {
       setError(requestError.message);
     } finally {
