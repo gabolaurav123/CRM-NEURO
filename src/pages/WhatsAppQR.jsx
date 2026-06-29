@@ -17,19 +17,23 @@ export default function WhatsAppQR() {
   }, []);
 
   useEffect(() => {
-    if (status?.status !== 'qr_pending') return undefined;
+    const missingConnectedIdentity = status?.status === 'connected' && !status?.phone && !status?.whatsapp_id && !status?.display_phone;
+    if (status?.status !== 'qr_pending' && status?.status !== 'initializing' && !missingConnectedIdentity) return undefined;
     const timer = setInterval(() => {
       loadStatus({ quiet: true });
     }, 5000);
     return () => clearInterval(timer);
-  }, [status?.status]);
+  }, [status?.status, status?.phone, status?.whatsapp_id, status?.display_phone]);
 
   async function loadStatus({ quiet = false } = {}) {
     if (!quiet) setLoading(true);
     setError('');
     try {
       const payload = await whatsappApi.status();
-      setStatus((current) => ({ ...current, ...payload }));
+      setStatus((current) => {
+        const shouldKeepQr = !payload.qr && ['qr_pending', 'initializing', 'connected'].includes(payload.status);
+        return { ...current, ...payload, qr: payload.qr || (shouldKeepQr ? current?.qr : '') };
+      });
     } catch (requestError) {
       setError(requestError.message);
     } finally {

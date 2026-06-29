@@ -5,9 +5,11 @@ import { formatLeadPhone } from '../utils/formatPhone';
 export default function QRCard({ crm, status, loading, onGenerate, onRefresh, onRestart, onLogout }) {
   const qrSource = normalizeQrSource(status?.qr);
   const hasConnectedIdentity = Boolean(status?.phone || status?.whatsapp_id || status?.display_phone);
-  const connected = status?.status === 'connected' && hasConnectedIdentity;
-  const displayStatus = status?.status === 'connected' && !hasConnectedIdentity ? 'disconnected' : status?.status;
+  const connected = status?.status === 'connected';
+  const displayStatus = status?.status;
   const qrPending = displayStatus === 'qr_pending';
+  const connectingIdentity = connected && !hasConnectedIdentity;
+  const blockQrGeneration = loading || (connected && hasConnectedIdentity);
   const connectedIdentity = formatLeadPhone({
     phone: status?.phone,
     whatsapp_id: status?.whatsapp_id,
@@ -23,7 +25,9 @@ export default function QRCard({ crm, status, loading, onGenerate, onRefresh, on
             <h3 className="mt-2 text-2xl font-bold text-ink">{statusLabel(displayStatus)}</h3>
             <p className="mt-2 text-sm text-slate-500">
               {connected
-                ? 'WhatsApp conectado correctamente.'
+                ? connectingIdentity
+                  ? 'Escaneo detectado. Esperando confirmacion final del numero.'
+                  : 'WhatsApp conectado correctamente.'
                 : qrPending
                   ? 'Escanea este QR desde WhatsApp para conectar el numero al bot.'
                   : 'WhatsApp no esta conectado.'}
@@ -36,16 +40,16 @@ export default function QRCard({ crm, status, loading, onGenerate, onRefresh, on
 
         <dl className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Info label="CRM para nuevos leads" value={crm?.name || status?.active_crm_key || '-'} />
-          <Info label="Numero / ID conectado" value={connectedIdentity} />
+          <Info label="Numero / ID conectado" value={connectingIdentity ? 'Detectando numero...' : connectedIdentity} />
           <Info label="Ultima conexion" value={formatDate(status?.last_connected_at)} />
           <Info label="Ultimo QR" value={formatDate(status?.last_qr_at)} />
         </dl>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <button className="rounded-lg bg-ink px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60" onClick={onGenerate} disabled={loading || connected}>
+          <button className="rounded-lg bg-ink px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60" onClick={onGenerate} disabled={blockQrGeneration}>
             Generar QR
           </button>
-          <button className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" onClick={onGenerate} disabled={loading || connected}>
+          <button className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" onClick={onGenerate} disabled={blockQrGeneration}>
             Regenerar QR
           </button>
           <button className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50" onClick={onRefresh} disabled={loading}>

@@ -41,7 +41,7 @@ router.get('/status', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
     const payload = await chatbotRequest('/api/whatsapp/status', { crmKey });
-    const status = normalizeEmptyConnectedStatus(await keepConnectedUnlessManualLogout(normalizeWhatsappPayload(payload)));
+    const status = await keepConnectedUnlessManualLogout(normalizeWhatsappPayload(payload));
     await storeWhatsappSession(status, crmKey);
     const activeCrmKey = await getActiveWhatsappCrm();
     res.json({ ...status, active_crm_key: activeCrmKey });
@@ -138,12 +138,12 @@ router.post('/logout', async (req, res, next) => {
 
 function normalizeWhatsappPayload(payload, fallbackStatus = 'disconnected') {
   const data = payload?.data || payload || {};
-  const status = normalizeWhatsappStatus(data.status || data.connectionStatus || data.state || fallbackStatus);
+  const status = normalizeWhatsappStatus(getWhatsappStatusCandidate(data, fallbackStatus));
   return {
     status,
-    phone: data.phone || data.number || data.connectedNumber || '',
-    whatsapp_id: data.whatsapp_id || data.whatsappId || data.id || data.user?.id || '',
-    display_phone: data.display_phone || data.displayPhone || data.displayNumber || '',
+    phone: firstString(data.phone, data.number, data.connectedNumber, data.session?.phone, data.user?.phone),
+    whatsapp_id: firstString(data.whatsapp_id, data.whatsappId, data.id, data.user?.id, data.me?.id, data.info?.wid?._serialized, data.info?.wid, data.clientInfo?.wid?._serialized, data.clientInfo?.wid),
+    display_phone: firstString(data.display_phone, data.displayPhone, data.displayNumber, data.me?.number, data.user?.number),
     qr: data.qr || data.qrCode || data.qr_code || data.image || '',
     last_qr_at: data.last_qr_at || data.lastQrAt || data.qrGeneratedAt || null,
     last_connected_at: data.last_connected_at || data.lastConnectedAt || data.connectedAt || null,
@@ -169,6 +169,43 @@ async function storeWhatsappSession(status, crmKey = 'holograficas') {
       { source: 'crm_proxy', active_crm_key: crmKey, raw: status.raw || null }
     ]
   );
+}
+
+function getWhatsappStatusCandidate(data, fallbackStatus) {
+  const explicit = firstValue(
+    data.status,
+    data.connectionStatus,
+    data.state,
+    data.sessionStatus,
+    data.whatsappStatus,
+    data.connection?.status,
+    data.connection?.state,
+    data.session?.status,
+    data.client?.status,
+    data.client?.state
+  );
+  if (explicit !== undefined) return explicit;
+
+  if (firstTruthy(data.connected, data.isConnected, data.ready, data.isReady, data.authenticated, data.isAuthenticated, data.loggedIn, data.isLoggedIn)) {
+    return 'connected';
+  }
+  if (data.qr || data.qrCode || data.qr_code || data.image) return 'qr_pending';
+  return fallbackStatus;
+}
+
+function firstValue(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== '');
+}
+
+function firstTruthy(...values) {
+  return values.some((value) => value === true || String(value).trim().toLowerCase() === 'true');
+}
+
+function firstString(...values) {
+  const value = firstValue(...values);
+  if (value === undefined) return '';
+  if (typeof value === 'object') return firstString(value._serialized, value.id, value.user, value.number);
+  return String(value);
 }
 
 async function keepConnectedUnlessManualLogout(status) {
