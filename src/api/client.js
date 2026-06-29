@@ -1,5 +1,6 @@
 const TOKEN_KEY = 'crm_neuro_token';
 const CRM_KEY = 'crm_neuro_selected_crm';
+export const AUTH_EXPIRED_EVENT = 'crm_neuro_auth_expired';
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -25,6 +26,12 @@ export function clearSelectedCrm() {
   localStorage.removeItem(CRM_KEY);
 }
 
+function expireAuthSession() {
+  clearToken();
+  clearSelectedCrm();
+  window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+}
+
 export async function apiRequest(path, options = {}) {
   const token = getToken();
   const crmKey = getSelectedCrm();
@@ -43,7 +50,7 @@ export async function apiRequest(path, options = {}) {
   const payload = text ? JSON.parse(text) : {};
 
   if (!response.ok) {
-    if (response.status === 401) clearToken();
+    if (response.status === 401) expireAuthSession();
     const error = new Error(payload.error || payload.message || 'API_ERROR');
     error.status = response.status;
     error.payload = payload;

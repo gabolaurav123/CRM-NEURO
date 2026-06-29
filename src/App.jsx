@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
-import { apiRequest, clearSelectedCrm, clearToken, getSelectedCrm, getToken, setSelectedCrm } from './api/client';
+import { AUTH_EXPIRED_EVENT, apiRequest, clearSelectedCrm, clearToken, getSelectedCrm, getToken, setSelectedCrm } from './api/client';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Conversations from './pages/Conversations';
@@ -32,21 +32,31 @@ function AppRoutes() {
   const [activatingCrmKey, setActivatingCrmKey] = useState('');
   const [crmActivationError, setCrmActivationError] = useState('');
 
+  function resetSession() {
+    clearToken();
+    clearSelectedCrm();
+    setAdmin(null);
+    setCrmKey(null);
+    setActiveCrmKey('');
+    setCrmActivationError('');
+    setActivatingCrmKey('');
+    navigate('/login', { replace: true });
+  }
+
+  useEffect(() => {
+    window.addEventListener(AUTH_EXPIRED_EVENT, resetSession);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, resetSession);
+  }, []);
+
   useEffect(() => {
     if (!getToken()) return;
     apiRequest('/auth/me')
       .then((payload) => setAdmin(payload.admin))
-      .catch(() => {
-        clearToken();
-        clearSelectedCrm();
-        setAdmin(null);
-        setCrmKey(null);
-        setActiveCrmKey('');
-      });
+      .catch(resetSession);
   }, []);
 
   useEffect(() => {
-    if (!getToken()) return undefined;
+    if (!getToken() || !admin) return undefined;
     let cancelled = false;
     setLoadingActiveCrm(true);
     apiRequest('/whatsapp/active-crm')
@@ -55,6 +65,7 @@ function AppRoutes() {
         setActiveCrmKey(payload.crm_key || payload.active_crm_key || payload.whatsapp_active_crm_key || '');
       })
       .catch((error) => {
+        if (error.status === 401) return resetSession();
         if (!cancelled) setCrmActivationError(error.message || 'No se pudo leer el CRM activo para WhatsApp.');
       })
       .finally(() => {
@@ -76,6 +87,8 @@ function AppRoutes() {
     setAdmin(null);
     setCrmKey(null);
     setActiveCrmKey('');
+    setCrmActivationError('');
+    setActivatingCrmKey('');
     navigate('/login', { replace: true });
   }
 
@@ -96,6 +109,7 @@ function AppRoutes() {
       });
       setActiveCrmKey(payload.crm_key || payload.active_crm_key || payload.whatsapp_active_crm_key || nextCrmKey);
     } catch (error) {
+      if (error.status === 401) return resetSession();
       setCrmActivationError(error.message || 'No se pudo activar el CRM para WhatsApp.');
     } finally {
       setActivatingCrmKey('');
