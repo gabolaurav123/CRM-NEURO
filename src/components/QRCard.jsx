@@ -4,8 +4,10 @@ import { formatLeadPhone } from '../utils/formatPhone';
 
 export default function QRCard({ crm, status, loading, onGenerate, onRefresh, onRestart, onLogout }) {
   const qrSource = normalizeQrSource(status?.qr);
-  const connected = status?.status === 'connected';
-  const qrPending = status?.status === 'qr_pending';
+  const hasConnectedIdentity = Boolean(status?.phone || status?.whatsapp_id || status?.display_phone);
+  const connected = status?.status === 'connected' && hasConnectedIdentity;
+  const displayStatus = status?.status === 'connected' && !hasConnectedIdentity ? 'disconnected' : status?.status;
+  const qrPending = displayStatus === 'qr_pending';
   const connectedIdentity = formatLeadPhone({
     phone: status?.phone,
     whatsapp_id: status?.whatsapp_id,
@@ -18,7 +20,7 @@ export default function QRCard({ crm, status, loading, onGenerate, onRefresh, on
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.16em] text-brand-700">Estado actual</p>
-            <h3 className="mt-2 text-2xl font-bold text-ink">{statusLabel(status?.status)}</h3>
+            <h3 className="mt-2 text-2xl font-bold text-ink">{statusLabel(displayStatus)}</h3>
             <p className="mt-2 text-sm text-slate-500">
               {connected
                 ? 'WhatsApp conectado correctamente.'
@@ -27,8 +29,8 @@ export default function QRCard({ crm, status, loading, onGenerate, onRefresh, on
                   : 'WhatsApp no esta conectado.'}
             </p>
           </div>
-          <span className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ${statusTone(status?.status)}`}>
-            {status?.status || 'disconnected'}
+          <span className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ${statusTone(displayStatus)}`}>
+            {displayStatus || 'disconnected'}
           </span>
         </div>
 
