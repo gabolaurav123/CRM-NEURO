@@ -53,7 +53,7 @@ Respuesta esperada:
 
 Cuando se elige una operacion en `/select-crm`, el CRM guarda `bot_settings.whatsapp_active_crm_key` en PostgreSQL. Ese valor queda activo aunque cierres la pagina o nadie tenga el panel abierto. Generar o reiniciar el QR desde una operacion tambien actualiza ese valor. El chatbot debe usar ese valor al insertar `leads`, `messages`, `conversations`, `conversation_memory`, `followups` y `payments`.
 
-Como proteccion adicional, si WhatsApp esta activo en Holograficas y el chatbot aun inserta por error en `neurotraumas`, el CRM solo mueve hacia Holograficas leads creados desde la activacion de Holograficas. No arrastra historicos de Neurotraumas.
+Como proteccion adicional, si el chatbot inserta por error en el CRM contrario al activo, el CRM mueve esos leads y sus mensajes hacia la operacion activa. Esto aplica en ambos sentidos: de Neurotraumas a Holograficas y de Holograficas a Neurotraumas. Solo se mueven registros creados desde la activacion de la operacion activa, para no arrastrar historicos.
 
 Para guardar datos estructurados desde el chatbot, usa:
 
