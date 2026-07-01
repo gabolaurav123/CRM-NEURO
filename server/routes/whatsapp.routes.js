@@ -61,6 +61,12 @@ router.get('/status', async (req, res, next) => {
 router.get('/qr', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
+    const connected = await getLatestConnectedWhatsappSession();
+    if (connected) {
+      const status = withPassiveStatusWarning(connected);
+      await storeWhatsappSession(status, crmKey);
+      return res.json({ ...status, active_crm_key: crmKey, already_connected: true });
+    }
     const payload = await chatbotRequest('/api/whatsapp/qr?force_qr=true&force=true', { crmKey });
     const status = normalizeQrPayload(payload);
     await storeWhatsappSession(status, crmKey);
@@ -82,6 +88,13 @@ router.post('/generate-qr', async (req, res, next) => {
   try {
     const crmKey = getCrmKey(req);
     await setActiveWhatsappCrm(crmKey);
+    const connected = await getLatestConnectedWhatsappSession();
+    if (connected) {
+      const status = withPassiveStatusWarning(connected);
+      await storeWhatsappSession(status, crmKey);
+      await createAdminAction({ crmKey, action: 'whatsapp_generate_qr_skipped_connected', details: { active_crm_key: crmKey }, adminEmail: req.admin?.email });
+      return res.json({ ...status, active_crm_key: crmKey, already_connected: true });
+    }
     const payload = await chatbotRequest('/api/whatsapp/generate-qr?force_qr=true&force=true', {
       method: 'POST',
       crmKey,
@@ -209,17 +222,24 @@ function firstString(...values) {
 }
 
 async function keepConnectedUnlessManualLogout(status) {
-  if (status.status !== 'disconnected') return status;
-  if (status.phone || status.whatsapp_id || status.display_phone || status.qr) return status;
+  if (status.status === 'connected') return status;
 
   const connected = await getLatestConnectedWhatsappSession();
   if (!connected) return status;
 
   return {
-    ...connected,
-    status: 'connected',
+    ...withPassiveStatusWarning(connected),
     raw: status.raw,
-    warning: 'El chatbot reporto un cierre pasivo, se conserva la sesion conectada hasta desconexion manual.'
+    warning: `El chatbot reporto ${status.status}, se conserva la sesion conectada hasta desconexion manual.`
+  };
+}
+
+function withPassiveStatusWarning(status) {
+  return {
+    ...status,
+    status: 'connected',
+    qr: '',
+    warning: 'WhatsApp ya esta conectado. Para generar un QR nuevo, primero desconecta manualmente.'
   };
 }
 
@@ -294,7 +314,7 @@ async function getLatestWhatsappSession() {
             last_connected_at,
             updated_at
      FROM whatsapp_sessions
-     ORDER BY updated_at DESC NULLS LAST, id DESC
+     ORDER BY CASE WHEN status = 'connected' THEN 0 ELSE 1 END, updated_at DESC NULLS LAST, id DESC
      LIMIT 1`
   );
 

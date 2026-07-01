@@ -93,7 +93,7 @@ router.get('/metrics', async (req, res, next) => {
         query(`
           SELECT status, phone, whatsapp_id, display_phone, last_connected_at, last_qr_at, updated_at
           FROM whatsapp_sessions
-          ORDER BY updated_at DESC NULLS LAST, id DESC
+          ORDER BY CASE WHEN status = 'connected' THEN 0 ELSE 1 END, updated_at DESC NULLS LAST, id DESC
           LIMIT 1
         `),
         getSettings()
