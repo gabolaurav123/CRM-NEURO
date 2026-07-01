@@ -223,10 +223,6 @@ async function keepConnectedUnlessManualLogout(status) {
   };
 }
 
-function hasWhatsappIdentity(status) {
-  return Boolean(status?.phone || status?.whatsapp_id || status?.display_phone);
-}
-
 function normalizeWhatsappStatus(value) {
   if (value === true) return 'connected';
   if (value === false) return 'disconnected';
@@ -251,11 +247,6 @@ async function getLatestConnectedWhatsappSession() {
             updated_at
      FROM whatsapp_sessions
      WHERE status = 'connected'
-       AND (
-         NULLIF(phone, '') IS NOT NULL
-         OR NULLIF(whatsapp_id, '') IS NOT NULL
-         OR NULLIF(display_phone, '') IS NOT NULL
-       )
      ORDER BY updated_at DESC NULLS LAST, id DESC
      LIMIT 1`
   );
@@ -271,15 +262,6 @@ async function invalidateConnectedWhatsappSessions(crmKey, reason) {
      WHERE status = 'connected'`,
     [{ disconnected_by: reason, active_crm_key: crmKey, disconnected_at: new Date().toISOString() }]
   );
-}
-
-function normalizeEmptyConnectedStatus(status) {
-  if (status.status !== 'connected' || hasWhatsappIdentity(status)) return status;
-  return {
-    ...status,
-    status: 'disconnected',
-    warning: 'El chatbot reporto conectado sin numero ni ID; se requiere QR para confirmar la vinculacion.'
-  };
 }
 
 function normalizeQrPayload(payload) {
