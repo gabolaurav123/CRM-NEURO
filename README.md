@@ -18,6 +18,11 @@ ADMIN_PASSWORD=
 ADMIN_EXTRA_USERS=NEUROTRAUMA:$2a$12$Xf0bmTtShpeWr9itmzsebe.6ElpVcNIHgSW6RUdHlTGDqLeodXLb.
 CHATBOT_API_URL=
 ADMIN_API_KEY=
+CHATBOT_REQUEST_TIMEOUT_MS=15000
+WHATSAPP_KEEPALIVE_ENABLED=true
+WHATSAPP_KEEPALIVE_INTERVAL_MS=120000
+WHATSAPP_KEEPALIVE_RESTART_COOLDOWN_MS=300000
+WHATSAPP_KEEPALIVE_PROACTIVE_RESTART_MS=14400000
 PRODUCT_NAME=Neurotraumas(TM)
 HOTMART_LINK=https://pay.hotmart.com/T103515864E
 TIMEZONE=America/La_Paz
@@ -32,6 +37,8 @@ No subas `.env` a GitHub. El archivo ya esta ignorado por `.gitignore`.
 ```http
 x-admin-api-key: ADMIN_API_KEY
 ```
+
+El servidor del CRM tambien ejecuta un watchdog de WhatsApp. Cada `WHATSAPP_KEEPALIVE_INTERVAL_MS` consulta el estado real del chatbot; si antes habia una sesion conectada y el chatbot reporta `disconnected`, `qr_pending` o `initializing`, el CRM intenta reactivar la sesion con `/api/whatsapp/restart`. `WHATSAPP_KEEPALIVE_RESTART_COOLDOWN_MS` evita reinicios repetidos. Para evitar sesiones dormidas aunque el chatbot reporte `connected`, `WHATSAPP_KEEPALIVE_PROACTIVE_RESTART_MS` reinicia preventivamente el cliente preservando la sesion; usa `0` para desactivarlo. El timeout de cada llamada al chatbot se controla con `CHATBOT_REQUEST_TIMEOUT_MS`.
 
 Cuando se elige un CRM, el frontend envia `x-crm-key` al backend y el backend lo reenvia al chatbot. Valores actuales:
 
@@ -155,7 +162,7 @@ Runtime: Node.js 20.
 
 1. Sube el repositorio a GitHub.
 2. Crea un servicio en Seenode.
-3. Configura las variables `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_EXTRA_USERS`, `CHATBOT_API_URL`, `ADMIN_API_KEY`, `PRODUCT_NAME` y `TIMEZONE`.
+3. Configura las variables `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_EXTRA_USERS`, `CHATBOT_API_URL`, `ADMIN_API_KEY`, `PRODUCT_NAME` y `TIMEZONE`. Opcionalmente ajusta `CHATBOT_REQUEST_TIMEOUT_MS`, `WHATSAPP_KEEPALIVE_ENABLED`, `WHATSAPP_KEEPALIVE_INTERVAL_MS`, `WHATSAPP_KEEPALIVE_RESTART_COOLDOWN_MS` y `WHATSAPP_KEEPALIVE_PROACTIVE_RESTART_MS`.
 4. Build command: `npm install && npm run build`.
 5. Start command: `npm start`.
 6. Port: `80`.

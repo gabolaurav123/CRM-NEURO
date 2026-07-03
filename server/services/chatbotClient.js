@@ -16,22 +16,37 @@ export async function chatbotRequest(path, options = {}) {
   }
 
   const requestPath = options.crmKey ? appendCrmQuery(ensureLeadingSlash(path), options.crmKey) : ensureLeadingSlash(path);
-  const response = await fetch(`${baseUrl}${requestPath}`, {
-    method: options.method || 'GET',
-    headers: {
-      'content-type': 'application/json',
-      'x-admin-api-key': adminKey,
-      ...(options.crmKey
-        ? {
-            'x-crm-key': options.crmKey,
-            'x-active-crm-key': options.crmKey,
-            'x-whatsapp-active-crm-key': options.crmKey
-          }
-        : {}),
-      ...(options.headers || {})
-    },
-    body: options.body ? JSON.stringify(withCrmBody(options.body, options.crmKey)) : undefined
-  });
+  const timeoutMs = readTimeout(options.timeoutMs);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+
+  try {
+    response = await fetch(`${baseUrl}${requestPath}`, {
+      method: options.method || 'GET',
+      headers: {
+        'content-type': 'application/json',
+        'x-admin-api-key': adminKey,
+        ...(options.crmKey
+          ? {
+              'x-crm-key': options.crmKey,
+              'x-active-crm-key': options.crmKey,
+              'x-whatsapp-active-crm-key': options.crmKey
+            }
+          : {}),
+        ...(options.headers || {})
+      },
+      body: options.body ? JSON.stringify(withCrmBody(options.body, options.crmKey)) : undefined,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new ChatbotClientError('Chatbot request timed out', 504);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const text = await response.text();
   const payload = parseJson(text);
@@ -69,6 +84,12 @@ export function assertChatbotSuccess(payload, fallbackMessage = 'Chatbot did not
 function normalizeBaseUrl(value) {
   if (!value) return '';
   return value.replace(/\/+$/, '');
+}
+
+function readTimeout(value) {
+  const timeout = Number(value || process.env.CHATBOT_REQUEST_TIMEOUT_MS || 15000);
+  if (!Number.isFinite(timeout) || timeout <= 0) return 15000;
+  return Math.max(timeout, 1000);
 }
 
 function ensureLeadingSlash(value) {

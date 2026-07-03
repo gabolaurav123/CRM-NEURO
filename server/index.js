@@ -16,6 +16,7 @@ import paymentsRoutes from './routes/payments.routes.js';
 import followupsRoutes from './routes/followups.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 import internalRoutes from './routes/internal.routes.js';
+import { startWhatsappKeepAlive } from './services/whatsappSessionService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,5 +87,6 @@ ensureDatabaseSchema()
   .finally(() => {
     app.listen(port, () => {
       console.log(`[server] CRM Neuro listening on port ${port}`);
+      startWhatsappKeepAlive();
     });
   });
