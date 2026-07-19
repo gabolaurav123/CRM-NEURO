@@ -276,7 +276,11 @@ SET product_interest = CASE
 END
 WHERE product_interest IS NULL
    OR product_interest = ''
-   OR product_interest NOT IN ('neurotrauma', 'holograficas', 'ambos', 'sin_definir');
+   OR product_interest NOT IN ('neurotrauma', 'holograficas', 'ambos', 'sin_definir')
+   OR (
+     product_interest = 'sin_definir'
+     AND crm_key IN ('neurotraumas', 'holograficas')
+   );
 
 INSERT INTO bot_settings (key, value, value_type, updated_at)
 VALUES
