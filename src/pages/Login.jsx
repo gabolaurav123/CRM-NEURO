@@ -22,7 +22,7 @@ export default function Login({ onLogin }) {
       });
       setToken(payload.token);
       onLogin?.(payload.admin);
-      navigate('/select-crm', { replace: true });
+      navigate('/', { replace: true });
     } catch (loginError) {
       setError(loginError.message === 'ADMIN_AUTH_NOT_CONFIGURED' ? 'Configura al menos un admin y JWT_SECRET.' : 'Credenciales invalidas.');
     } finally {
@@ -37,9 +37,9 @@ export default function Login({ onLogin }) {
           <div className="inline-flex rounded-lg bg-white px-4 py-3">
             <BrandLogo />
           </div>
-          <h1 className="mt-6 max-w-2xl text-4xl font-bold leading-tight sm:text-5xl">CRM privado</h1>
+            <h1 className="mt-6 max-w-2xl text-4xl font-bold leading-tight sm:text-5xl">Gimnasio del Cerebro</h1>
           <p className="mt-4 max-w-xl text-lg leading-8 text-slate-300">
-            Administracion privada para elegir y operar Neurotraumas u Holograficas dentro del mismo panel, con conversaciones, pagos, follow-ups y vinculacion de WhatsApp.
+            Un solo centro de control para convertir conversaciones en oportunidades, identificando si cada persona se interesa por Neurotrauma, Holograficas o ambos productos.
           </p>
         </section>
 

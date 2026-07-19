@@ -9,11 +9,13 @@ import MessageBubble from '../components/MessageBubble';
 import { formatDate } from '../utils/formatDate';
 import { formatLeadPhone, getLeadPhoneDisplay } from '../utils/formatPhone';
 import { isUuid } from '../utils/ids';
+import ProductInterestBadge from '../components/ProductInterestBadge';
+import { PRODUCT_OPTIONS } from '../utils/products';
 
 export default function Conversations() {
   const { leadId } = useParams();
   const navigate = useNavigate();
-  const [filters, setFilters] = useState({ status: '', q: '' });
+  const [filters, setFilters] = useState({ status: '', product_interest: '', q: '' });
   const [conversations, setConversations] = useState([]);
   const [selected, setSelected] = useState({ lead: null, messages: [] });
   const [message, setMessage] = useState('');
@@ -123,6 +125,10 @@ export default function Conversations() {
                 <option value="bot_paused">Bot pausado</option>
                 <option value="unanswered">No respondidas</option>
               </select>
+              <select value={filters.product_interest} onChange={(event) => setFilters((current) => ({ ...current, product_interest: event.target.value }))} className="h-10 rounded-lg border border-line bg-slate-50 px-3 text-sm outline-none">
+                <option value="">Todos los productos</option>
+                {PRODUCT_OPTIONS.map((product) => <option key={product.value} value={product.value}>{product.label}</option>)}
+              </select>
               <button className="rounded-lg bg-ink px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Filtrar</button>
             </div>
           </form>
@@ -140,8 +146,9 @@ export default function Conversations() {
                     <p className="font-bold text-slate-900">{item.name || 'Sin nombre'}</p>
                     <PhoneText lead={item} />
                   </div>
-                  <LeadStatusBadge status={item.lead_status} />
+                    <LeadStatusBadge status={item.lead_status} />
                 </div>
+                <div className="mt-2"><ProductInterestBadge lead={item} /></div>
                 <p className="mt-2 line-clamp-2 text-sm text-slate-600">{item.last_message || 'Sin mensajes'}</p>
                 <p className="mt-2 text-xs text-slate-400">{formatDate(item.last_activity_at)}</p>
               </button>
@@ -156,6 +163,7 @@ export default function Conversations() {
                 <div>
                   <h2 className="text-xl font-bold text-ink">{selected.lead.name || 'Sin nombre'}</h2>
                   <p className="text-sm text-slate-500">{formatLeadPhone(selected.lead)} | {selected.lead.email || 'Sin correo'}</p>
+                  <div className="mt-2"><ProductInterestBadge lead={selected.lead} /></div>
                   <Link to={`/leads/${selected.lead.id}`} className="mt-2 inline-block text-sm font-bold text-brand-700 hover:text-brand-600">
                     Abrir lead
                   </Link>

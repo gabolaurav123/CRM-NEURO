@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Download, Filter, Search } from 'lucide-react';
 import { leadsApi } from '../api/leads';
 import ConfirmModal from '../components/ConfirmModal';
 import LeadTable from '../components/LeadTable';
 import { FUNNEL_STAGES, LEAD_STATUSES, PAYMENT_STATUSES } from '../utils/constants';
 import { formatLeadPhone, formatPhone, isRealPhone, stripWhatsappSuffix } from '../utils/formatPhone';
+import { PRODUCT_OPTIONS } from '../utils/products';
 
 const initialFilters = {
   q: '',
@@ -14,6 +16,7 @@ const initialFilters = {
   country: '',
   city: '',
   username: '',
+  product_interest: '',
   lead_status: '',
   funnel_stage: '',
   main_pain: '',
@@ -26,7 +29,8 @@ const initialFilters = {
 };
 
 export default function Leads() {
-  const [filters, setFilters] = useState(initialFilters);
+  const [searchParams] = useSearchParams();
+  const [filters, setFilters] = useState(() => ({ ...initialFilters, product_interest: searchParams.get('product_interest') || '' }));
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -136,6 +140,7 @@ export default function Leads() {
           <Input label="Ciudad" value={filters.city} onChange={(value) => updateFilter('city', value)} />
           <Input label="Usuario" value={filters.username} onChange={(value) => updateFilter('username', value)} />
           <Input label="Dolor" value={filters.main_pain} onChange={(value) => updateFilter('main_pain', value)} />
+          <Select label="Producto de interes" value={filters.product_interest} onChange={(value) => updateFilter('product_interest', value)} options={PRODUCT_OPTIONS.map((option) => option.value)} labels={Object.fromEntries(PRODUCT_OPTIONS.map((option) => [option.value, option.label]))} />
           <Select label="Estado" value={filters.lead_status} onChange={(value) => updateFilter('lead_status', value)} options={LEAD_STATUSES} />
           <Select label="Etapa" value={filters.funnel_stage} onChange={(value) => updateFilter('funnel_stage', value)} options={FUNNEL_STAGES} />
           <Select label="Pago" value={filters.payment_status} onChange={(value) => updateFilter('payment_status', value)} options={PAYMENT_STATUSES} />
@@ -182,7 +187,7 @@ function Input({ label, value, onChange, type = 'text', icon: Icon }) {
   );
 }
 
-function Select({ label, value, onChange, options }) {
+function Select({ label, value, onChange, options, labels = {} }) {
   return (
     <label className="block">
       <span className="text-xs font-bold text-slate-600">{label}</span>
@@ -190,7 +195,7 @@ function Select({ label, value, onChange, options }) {
         <option value="">Todos</option>
         {options.map((option) => (
           <option key={option} value={option}>
-            {option}
+            {labels[option] || option}
           </option>
         ))}
       </select>
@@ -209,6 +214,7 @@ function exportCsv(leads) {
     ['country', 'Pais'],
     ['city', 'Ciudad'],
     ['username', 'Usuario'],
+    ['product_interest', 'Producto de interes'],
     ['main_pain', 'Dolor principal'],
     ['urgency', 'Urgencia'],
     ['lead_score', 'Score'],

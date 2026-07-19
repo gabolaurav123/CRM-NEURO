@@ -1,16 +1,12 @@
 import { Router } from 'express';
 import { query } from '../db.js';
-import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
 import { getSettings } from '../services/settingsService.js';
-import { crmWhere, getCrmKey } from '../utils/crm.js';
 
 const router = Router();
 
 router.get('/metrics', async (req, res, next) => {
   try {
-    const crmKey = getCrmKey(req);
-    await syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey: crmKey });
-    const [metrics, commonObjection, commonPain, leadsByDay, leadsByStatus, leadsByPain, funnel, whatsapp, settings] =
+    const [metrics, commonObjection, commonPain, leadsByDay, leadsByStatus, leadsByPain, leadsByProduct, productConversion, funnel, attention, recentLeads, whatsapp, settings] =
       await Promise.all([
         query(`
           SELECT
@@ -26,94 +22,88 @@ router.get('/metrics', async (req, res, next) => {
             COUNT(*) FILTER (WHERE payment_status IN ('pagado', 'confirmed'))::INT AS payments_confirmed,
             COUNT(*) FILTER (WHERE bot_paused = TRUE)::INT AS bot_paused,
             COUNT(*) FILTER (WHERE human_takeover = TRUE)::INT AS human_takeover,
+            COUNT(*) FILTER (WHERE product_interest = 'sin_definir' OR product_interest IS NULL)::INT AS product_undefined,
             COALESCE(ROUND(AVG(NULLIF(urgency, 0))::NUMERIC, 1), 0)::FLOAT AS avg_urgency,
             COALESCE(ROUND(AVG(NULLIF(lead_score, 0))::NUMERIC, 1), 0)::FLOAT AS avg_lead_score,
             CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND((COUNT(*) FILTER (WHERE hotmart_link_sent = TRUE)::NUMERIC / COUNT(*)) * 100, 1) END::FLOAT AS payment_link_rate,
             CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND((COUNT(*) FILTER (WHERE payment_status IN ('pagado', 'confirmed'))::NUMERIC / COUNT(*)) * 100, 1) END::FLOAT AS payment_confirmed_rate
           FROM leads
-          WHERE ${crmWhere()} = $1
-        `, [crmKey]),
-        query(`
-          SELECT main_objection AS label, COUNT(*)::INT AS total
-          FROM leads
-          WHERE ${crmWhere()} = $1 AND COALESCE(main_objection, '') <> ''
-          GROUP BY main_objection
-          ORDER BY total DESC
-          LIMIT 1
-        `, [crmKey]),
-        query(`
-          SELECT main_pain AS label, COUNT(*)::INT AS total
-          FROM leads
-          WHERE ${crmWhere()} = $1 AND COALESCE(main_pain, '') <> ''
-          GROUP BY main_pain
-          ORDER BY total DESC
-          LIMIT 1
-        `, [crmKey]),
+        `),
+        query(`SELECT main_objection AS label, COUNT(*)::INT AS total FROM leads WHERE COALESCE(main_objection, '') <> '' GROUP BY main_objection ORDER BY total DESC LIMIT 1`),
+        query(`SELECT main_pain AS label, COUNT(*)::INT AS total FROM leads WHERE COALESCE(main_pain, '') <> '' GROUP BY main_pain ORDER BY total DESC LIMIT 1`),
         query(`
           SELECT series.day::DATE AS day, COUNT(l.id)::INT AS total
           FROM GENERATE_SERIES(CURRENT_DATE - INTERVAL '13 days', CURRENT_DATE, INTERVAL '1 day') AS series(day)
-          LEFT JOIN leads l ON l.created_at::DATE = series.day::DATE AND ${crmWhere('l')} = $1
+          LEFT JOIN leads l ON l.created_at::DATE = series.day::DATE
           GROUP BY series.day
           ORDER BY series.day
-        `, [crmKey]),
+        `),
+        query(`SELECT COALESCE(lead_status, 'sin_estado') AS label, COUNT(*)::INT AS total FROM leads GROUP BY COALESCE(lead_status, 'sin_estado') ORDER BY total DESC`),
+        query(`SELECT COALESCE(NULLIF(main_pain, ''), 'sin_dolor') AS label, COUNT(*)::INT AS total FROM leads GROUP BY COALESCE(NULLIF(main_pain, ''), 'sin_dolor') ORDER BY total DESC LIMIT 8`),
         query(`
-          SELECT COALESCE(lead_status, 'sin_estado') AS label, COUNT(*)::INT AS total
+          SELECT
+            CASE
+              WHEN product_interest IN ('neurotrauma', 'holograficas', 'ambos') THEN product_interest
+              WHEN crm_key = 'neurotraumas' THEN 'neurotrauma'
+              WHEN crm_key = 'holograficas' THEN 'holograficas'
+              ELSE 'sin_definir'
+            END AS label,
+            COUNT(*)::INT AS total
           FROM leads
-          WHERE ${crmWhere()} = $1
-          GROUP BY COALESCE(lead_status, 'sin_estado')
+          GROUP BY 1
           ORDER BY total DESC
-        `, [crmKey]),
+        `),
         query(`
-          SELECT COALESCE(NULLIF(main_pain, ''), 'sin_dolor') AS label, COUNT(*)::INT AS total
+          SELECT
+            CASE
+              WHEN product_interest IN ('neurotrauma', 'holograficas', 'ambos') THEN product_interest
+              WHEN crm_key = 'neurotraumas' THEN 'neurotrauma'
+              WHEN crm_key = 'holograficas' THEN 'holograficas'
+              ELSE 'sin_definir'
+            END AS product,
+            COUNT(*)::INT AS leads,
+            COUNT(*) FILTER (WHERE payment_status IN ('pagado', 'confirmed'))::INT AS sales,
+            CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND((COUNT(*) FILTER (WHERE payment_status IN ('pagado', 'confirmed'))::NUMERIC / COUNT(*)) * 100, 1) END::FLOAT AS conversion
           FROM leads
-          WHERE ${crmWhere()} = $1
-          GROUP BY COALESCE(NULLIF(main_pain, ''), 'sin_dolor')
-          ORDER BY total DESC
-          LIMIT 8
-        `, [crmKey]),
+          GROUP BY 1
+          ORDER BY leads DESC
+        `),
         query(`
           WITH stages(label, sort_order) AS (
-            VALUES
-              ('inicio', 1),
-              ('captacion', 2),
-              ('diagnostico', 3),
-              ('datos_solicitados', 4),
-              ('oferta_presentada', 5),
-              ('objecion', 6),
-              ('link_pago_enviado', 7),
-              ('pago_reportado', 8),
-              ('onboarding', 9)
+            VALUES ('inicio', 1), ('captacion', 2), ('diagnostico', 3), ('datos_solicitados', 4),
+                   ('oferta_presentada', 5), ('objecion', 6), ('link_pago_enviado', 7), ('pago_reportado', 8), ('onboarding', 9)
           )
           SELECT stages.label, COUNT(leads.id)::INT AS total
-          FROM stages
-          LEFT JOIN leads ON leads.funnel_stage = stages.label AND ${crmWhere('leads')} = $1
-          GROUP BY stages.label, stages.sort_order
-          ORDER BY stages.sort_order
-        `, [crmKey]),
-        query(`
-          SELECT status, phone, whatsapp_id, display_phone, last_connected_at, last_qr_at, updated_at
-          FROM whatsapp_sessions
-          ORDER BY updated_at DESC NULLS LAST, id DESC
-          LIMIT 1
+          FROM stages LEFT JOIN leads ON leads.funnel_stage = stages.label
+          GROUP BY stages.label, stages.sort_order ORDER BY stages.sort_order
         `),
+        query(`
+          SELECT
+            COUNT(*) FILTER (WHERE status = 'pending' AND COALESCE(scheduled_for, scheduled_at) < NOW())::INT AS overdue_followups,
+            COUNT(*) FILTER (WHERE status = 'pending' AND COALESCE(scheduled_for, scheduled_at) BETWEEN NOW() AND NOW() + INTERVAL '24 hours')::INT AS followups_next_24h
+          FROM followups
+        `),
+        query(`
+          SELECT id, name, phone, whatsapp_id, display_phone, product_interest, crm_key, lead_status, funnel_stage, payment_status, created_at
+          FROM leads
+          ORDER BY created_at DESC NULLS LAST, id DESC
+          LIMIT 6
+        `),
+        query(`SELECT status, phone, whatsapp_id, display_phone, last_connected_at, last_qr_at, updated_at FROM whatsapp_sessions ORDER BY updated_at DESC NULLS LAST, id DESC LIMIT 1`),
         getSettings()
       ]);
 
-    const baseMetrics = metrics.rows[0] || {};
     const activeConversations = await query(`
       SELECT COUNT(*)::INT AS total
-      FROM (
-        SELECT DISTINCT m.lead_id
-        FROM messages m
-        LEFT JOIN leads l ON m.lead_id::TEXT = l.id::TEXT
-        WHERE m.created_at >= NOW() - INTERVAL '24 hours'
-          AND ${crmWhere('l')} = $1
-      ) recent_messages
-    `, [crmKey]);
+      FROM (SELECT DISTINCT lead_id FROM messages WHERE created_at >= NOW() - INTERVAL '24 hours' AND lead_id IS NOT NULL) recent_messages
+    `);
 
+    const baseMetrics = metrics.rows[0] || {};
+    const attentionMetrics = attention.rows[0] || {};
     res.json({
       metrics: {
         ...baseMetrics,
+        ...attentionMetrics,
         active_conversations: activeConversations.rows[0]?.total || 0,
         common_objection: commonObjection.rows[0]?.label || 'Sin datos',
         common_pain: commonPain.rows[0]?.label || 'Sin datos',
@@ -127,8 +117,11 @@ router.get('/metrics', async (req, res, next) => {
         leads_by_day: leadsByDay.rows,
         leads_by_status: leadsByStatus.rows,
         leads_by_pain: leadsByPain.rows,
+        leads_by_product: leadsByProduct.rows,
+        product_conversion: productConversion.rows,
         funnel: funnel.rows
-      }
+      },
+      recent_leads: recentLeads.rows
     });
   } catch (error) {
     next(error);

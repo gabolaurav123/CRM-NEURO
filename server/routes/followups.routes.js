@@ -1,17 +1,14 @@
 import { Router } from 'express';
 import { query, withTransaction } from '../db.js';
 import { assertChatbotSuccess, chatbotRequest } from '../services/chatbotClient.js';
-import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
-import { crmWhere, getCrmKey } from '../utils/crm.js';
+import { normalizeProductInterest } from '../utils/products.js';
 
 const router = Router();
 const VALID_FOLLOWUP_STATUSES = ['pending', 'sent', 'cancelled', 'failed'];
 
 router.get('/', async (req, res, next) => {
   try {
-    const crmKey = getCrmKey(req);
-    await syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey: crmKey });
-    const { whereSql, values } = buildFollowupFilters(req.query, crmKey);
+    const { whereSql, values } = buildFollowupFilters(req.query);
     const result = await query(
       `SELECT
          f.*,
@@ -25,6 +22,8 @@ router.get('/', async (req, res, next) => {
          l.email AS lead_email,
          l.country AS lead_country,
          l.city AS lead_city,
+         l.product_interest,
+         l.crm_key AS lead_crm_key,
          l.lead_status
        FROM followups f
        LEFT JOIN leads l ON f.lead_id::TEXT = l.id::TEXT
@@ -42,7 +41,7 @@ router.get('/', async (req, res, next) => {
 
 router.patch('/:id', async (req, res, next) => {
   try {
-    const result = await updateFollowup(req.params.id, req.body || {}, req.admin?.email, getCrmKey(req));
+    const result = await updateFollowup(req.params.id, req.body || {}, req.admin?.email);
     res.json(result);
   } catch (error) {
     next(error);
@@ -51,15 +50,18 @@ router.patch('/:id', async (req, res, next) => {
 
 router.post('/:id/send-now', async (req, res, next) => {
   try {
-    const crmKey = getCrmKey(req);
-    const followup = await query(`SELECT * FROM followups WHERE id::TEXT = $1 AND ${crmWhere()} = $2 LIMIT 1`, [String(req.params.id), crmKey]);
+    const followup = await query(
+      `SELECT f.*, l.crm_key AS lead_crm_key FROM followups f LEFT JOIN leads l ON f.lead_id::TEXT = l.id::TEXT WHERE f.id::TEXT = $1 LIMIT 1`,
+      [String(req.params.id)]
+    );
     if (followup.rowCount === 0) {
       return res.status(404).json({ error: 'FOLLOWUP_NOT_FOUND' });
     }
 
+    const crmKey = followup.rows[0].lead_crm_key || followup.rows[0].crm_key || 'holograficas';
     const chatbot = await chatbotRequest(`/api/followups/${req.params.id}/send-now`, { method: 'POST', crmKey });
     assertChatbotSuccess(chatbot, 'Follow-up was not sent by chatbot');
-    const result = await updateFollowup(req.params.id, { status: 'sent', sent_at: new Date().toISOString() }, req.admin?.email, crmKey);
+    const result = await updateFollowup(req.params.id, { status: 'sent', sent_at: new Date().toISOString() }, req.admin?.email);
 
     res.json({ ...result, chatbot });
   } catch (error) {
@@ -67,7 +69,7 @@ router.post('/:id/send-now', async (req, res, next) => {
   }
 });
 
-async function updateFollowup(followupId, body, adminEmail, crmKey = 'holograficas') {
+async function updateFollowup(followupId, body, adminEmail) {
   const editable = ['status', 'scheduled_for', 'scheduled_at', 'sent_at', 'message', 'type'];
   const updates = Object.fromEntries(Object.entries(body).filter(([key]) => editable.includes(key)));
 
@@ -85,7 +87,7 @@ async function updateFollowup(followupId, body, adminEmail, crmKey = 'holografic
   }
 
   if (Object.keys(updates).length === 0) {
-    const current = await query(`SELECT * FROM followups WHERE id::TEXT = $1 AND ${crmWhere()} = $2 LIMIT 1`, [String(followupId), crmKey]);
+    const current = await query(`SELECT * FROM followups WHERE id::TEXT = $1 LIMIT 1`, [String(followupId)]);
     if (current.rowCount === 0) {
       const error = new Error('FOLLOWUP_NOT_FOUND');
       error.status = 404;
@@ -95,6 +97,16 @@ async function updateFollowup(followupId, body, adminEmail, crmKey = 'holografic
   }
 
   return withTransaction(async (client) => {
+    const context = await client.query(
+      `SELECT f.*, l.crm_key AS lead_crm_key FROM followups f LEFT JOIN leads l ON f.lead_id::TEXT = l.id::TEXT WHERE f.id::TEXT = $1 LIMIT 1`,
+      [String(followupId)]
+    );
+    if (context.rowCount === 0) {
+      const error = new Error('FOLLOWUP_NOT_FOUND');
+      error.status = 404;
+      throw error;
+    }
+    const crmKey = context.rows[0].lead_crm_key || context.rows[0].crm_key || 'holograficas';
     const assignments = [];
     const values = [];
     Object.entries(updates).forEach(([key, value], index) => {
@@ -106,9 +118,9 @@ async function updateFollowup(followupId, body, adminEmail, crmKey = 'holografic
     const result = await client.query(
       `UPDATE followups
        SET ${assignments.join(', ')}, updated_at = NOW()
-       WHERE id::TEXT = $${values.length} AND ${crmWhere()} = $${values.length + 1}
+       WHERE id::TEXT = $${values.length}
        RETURNING *`,
-      [...values, crmKey]
+      values
     );
 
     if (result.rowCount === 0) {
@@ -128,9 +140,9 @@ async function updateFollowup(followupId, body, adminEmail, crmKey = 'holografic
   });
 }
 
-function buildFollowupFilters(filters, crmKey) {
-  const where = [`${crmWhere('l')} = $1`];
-  const values = [crmKey];
+function buildFollowupFilters(filters) {
+  const where = [];
+  const values = [];
 
   if (filters.status) {
     values.push(String(filters.status));
@@ -140,6 +152,11 @@ function buildFollowupFilters(filters, crmKey) {
   if (filters.type) {
     values.push(String(filters.type));
     where.push(`f.type = $${values.length}`);
+  }
+
+  if (filters.product_interest) {
+    values.push(normalizeProductInterest(filters.product_interest));
+    where.push(`l.product_interest = $${values.length}`);
   }
 
   if (filters.date_from) {

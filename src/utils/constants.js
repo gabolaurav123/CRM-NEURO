@@ -20,9 +20,11 @@ export const FUNNEL_STAGES = [
 export const WHATSAPP_STATUSES = ['connected', 'disconnected', 'qr_pending', 'initializing'];
 
 export const SETTING_FIELDS = [
-  { key: 'product_name', label: 'Nombre del producto', type: 'text' },
-  { key: 'product_price', label: 'Precio', type: 'number' },
-  { key: 'hotmart_link', label: 'Link de Hotmart', type: 'url' },
+  { key: 'product_name', label: 'Nombre principal del CRM', type: 'text' },
+  { key: 'neurotrauma_price', label: 'Precio Neurotrauma', type: 'number' },
+  { key: 'neurotrauma_hotmart_link', label: 'Link Neurotrauma', type: 'url' },
+  { key: 'holograficas_price', label: 'Precio Holograficas', type: 'number' },
+  { key: 'holograficas_hotmart_link', label: 'Link Holograficas', type: 'url' },
   { key: 'gemini_model', label: 'Modelo de Gemini', type: 'text' },
   { key: 'gemini_temperature', label: 'Temperatura de Gemini', type: 'number', step: '0.1' },
   { key: 'gemini_max_output_tokens', label: 'Maximo de tokens', type: 'number' },
