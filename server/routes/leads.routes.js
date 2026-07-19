@@ -4,9 +4,8 @@ import { createAdminAction } from '../services/adminActions.js';
 import { assertChatbotSuccess, chatbotRequest, optionalChatbotRequest } from '../services/chatbotClient.js';
 import { sendManualLeadMessage } from '../services/messagesService.js';
 import { getSettings } from '../services/settingsService.js';
-import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
-import { crmWhere, getCrmKey } from '../utils/crm.js';
 import { requireUuid } from '../utils/ids.js';
+import { normalizeProductInterest, PRODUCT_INTERESTS } from '../utils/products.js';
 
 const router = Router();
 
@@ -36,6 +35,7 @@ const EDITABLE_COLUMNS = [
   'username',
   'channel',
   'source_keyword',
+  'product_interest',
   'main_pain',
   'emotional_response',
   'problem_duration',
@@ -59,9 +59,7 @@ const EDITABLE_COLUMNS = [
 
 router.get('/', async (req, res, next) => {
   try {
-    const crmKey = getCrmKey(req);
-    await syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey: crmKey });
-    const { whereSql, values } = buildLeadFilters(req.query, crmKey);
+    const { whereSql, values } = buildLeadFilters(req.query);
     const limit = clampNumber(req.query.limit, 1, 250, 100);
     const page = clampNumber(req.query.page, 1, 100000, 1);
     const offset = (page - 1) * limit;
@@ -93,8 +91,7 @@ router.get('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const leadId = requireUuid(req.params.id);
-    const crmKey = getCrmKey(req);
-    const lead = await query(`SELECT * FROM leads WHERE id::TEXT = $1 AND ${crmWhere()} = $2 LIMIT 1`, [leadId, crmKey]);
+    const lead = await query(`SELECT * FROM leads WHERE id::TEXT = $1 LIMIT 1`, [leadId]);
 
     if (lead.rowCount === 0) {
       return res.status(404).json({ error: 'LEAD_NOT_FOUND' });
@@ -106,25 +103,25 @@ router.get('/:id', async (req, res, next) => {
                 COALESCE(body, message_text, content, '') AS body,
                 from_me, metadata, created_at
          FROM messages
-         WHERE (lead_id::TEXT = $1 AND ${crmWhere()} = $2)
+         WHERE lead_id::TEXT = $1
             OR conversation_id::TEXT IN (
               SELECT id::TEXT
               FROM conversations
-              WHERE lead_id::TEXT = $1 AND ${crmWhere()} = $2
+              WHERE lead_id::TEXT = $1
             )
          ORDER BY created_at ASC
          LIMIT 500`,
-        [leadId, crmKey]
+        [leadId]
       ),
-      query(`SELECT * FROM conversation_memory WHERE lead_id::TEXT = $1 AND ${crmWhere()} = $2 LIMIT 1`, [leadId, crmKey]),
-      query(`SELECT * FROM payments WHERE lead_id::TEXT = $1 AND ${crmWhere()} = $2 ORDER BY created_at DESC NULLS LAST, id DESC`, [leadId, crmKey]),
+      query(`SELECT * FROM conversation_memory WHERE lead_id::TEXT = $1 LIMIT 1`, [leadId]),
+      query(`SELECT * FROM payments WHERE lead_id::TEXT = $1 ORDER BY created_at DESC NULLS LAST, id DESC`, [leadId]),
       query(
         `SELECT *, COALESCE(scheduled_for, scheduled_at) AS scheduled_for, COALESCE(scheduled_at, scheduled_for) AS scheduled_at
          FROM followups
-         WHERE lead_id::TEXT = $1 AND ${crmWhere()} = $2
+         WHERE lead_id::TEXT = $1
          ORDER BY COALESCE(scheduled_for, scheduled_at) ASC NULLS LAST, id DESC
          LIMIT 100`,
-        [leadId, crmKey]
+        [leadId]
       )
     ]);
 
@@ -143,7 +140,6 @@ router.get('/:id', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const leadId = requireUuid(req.params.id);
-    const crmKey = getCrmKey(req);
     const updates = pickEditableLeadUpdates(req.body || {});
     validateLeadUpdates(updates);
 
@@ -163,15 +159,16 @@ router.patch('/:id', async (req, res, next) => {
     const result = await query(
       `UPDATE leads
        SET ${assignments.join(', ')}, updated_at = NOW()
-       WHERE id::TEXT = $${values.length} AND ${crmWhere()} = $${values.length + 1}
+       WHERE id::TEXT = $${values.length}
        RETURNING *`,
-      [...values, crmKey]
+      values
     );
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'LEAD_NOT_FOUND' });
     }
 
+    const crmKey = result.rows[0].crm_key || 'holograficas';
     await createAdminAction({
       leadId,
       crmKey,
@@ -189,8 +186,8 @@ router.patch('/:id', async (req, res, next) => {
 router.post('/:id/pause-bot', async (req, res, next) => {
   try {
     const leadId = requireUuid(req.params.id);
-    const crmKey = getCrmKey(req);
-    const result = await updateLeadFlags(leadId, { bot_paused: true, funnel_stage: 'pausado' }, crmKey);
+    const result = await updateLeadFlags(leadId, { bot_paused: true, funnel_stage: 'pausado' });
+    const crmKey = result.crm_key || 'holograficas';
     const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/pause-bot`, { method: 'POST', crmKey });
     await createAdminAction({ leadId, crmKey, action: 'bot_paused', adminEmail: req.admin?.email });
     res.json({ lead: result, chatbot });
@@ -202,8 +199,8 @@ router.post('/:id/pause-bot', async (req, res, next) => {
 router.post('/:id/resume-bot', async (req, res, next) => {
   try {
     const leadId = requireUuid(req.params.id);
-    const crmKey = getCrmKey(req);
-    const result = await updateLeadFlags(leadId, { bot_paused: false }, crmKey);
+    const result = await updateLeadFlags(leadId, { bot_paused: false });
+    const crmKey = result.crm_key || 'holograficas';
     const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/resume-bot`, { method: 'POST', crmKey });
     await createAdminAction({ leadId, crmKey, action: 'bot_resumed', adminEmail: req.admin?.email });
     res.json({ lead: result, chatbot });
@@ -215,8 +212,8 @@ router.post('/:id/resume-bot', async (req, res, next) => {
 router.post('/:id/takeover', async (req, res, next) => {
   try {
     const leadId = requireUuid(req.params.id);
-    const crmKey = getCrmKey(req);
-    const result = await updateLeadFlags(leadId, { human_takeover: true, funnel_stage: 'humano' }, crmKey);
+    const result = await updateLeadFlags(leadId, { human_takeover: true, funnel_stage: 'humano' });
+    const crmKey = result.crm_key || 'holograficas';
     const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/takeover`, { method: 'POST', crmKey });
     await createAdminAction({ leadId, crmKey, action: 'human_takeover_enabled', adminEmail: req.admin?.email });
     res.json({ lead: result, chatbot });
@@ -228,8 +225,8 @@ router.post('/:id/takeover', async (req, res, next) => {
 router.post('/:id/release-takeover', async (req, res, next) => {
   try {
     const leadId = requireUuid(req.params.id);
-    const crmKey = getCrmKey(req);
-    const result = await updateLeadFlags(leadId, { human_takeover: false }, crmKey);
+    const result = await updateLeadFlags(leadId, { human_takeover: false });
+    const crmKey = result.crm_key || 'holograficas';
     const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/release-takeover`, { method: 'POST', crmKey });
     await createAdminAction({ leadId, crmKey, action: 'human_takeover_released', adminEmail: req.admin?.email });
     res.json({ lead: result, chatbot });
@@ -241,20 +238,20 @@ router.post('/:id/release-takeover', async (req, res, next) => {
 router.post('/:id/delete-memory', async (req, res, next) => {
   try {
     const leadId = requireUuid(req.params.id);
-    const crmKey = getCrmKey(req);
-    const lead = await query(`SELECT id FROM leads WHERE id::TEXT = $1 AND ${crmWhere()} = $2 LIMIT 1`, [leadId, crmKey]);
+    const lead = await query(`SELECT id, crm_key FROM leads WHERE id::TEXT = $1 LIMIT 1`, [leadId]);
     if (lead.rowCount === 0) {
       return res.status(404).json({ error: 'LEAD_NOT_FOUND' });
     }
-    const memoryDelete = await query(`DELETE FROM conversation_memory WHERE lead_id::TEXT = $1 AND ${crmWhere()} = $2`, [leadId, crmKey]);
+    const crmKey = lead.rows[0].crm_key || 'holograficas';
+    const memoryDelete = await query(`DELETE FROM conversation_memory WHERE lead_id::TEXT = $1`, [leadId]);
     const leadUpdate = await query(
       `UPDATE leads
        SET memory_expires_at = NULL,
            consent_24h = FALSE,
            updated_at = NOW()
-       WHERE id::TEXT = $1 AND ${crmWhere()} = $2
+       WHERE id::TEXT = $1
        RETURNING *`,
-      [leadId, crmKey]
+      [leadId]
     );
     const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/delete-memory`, { method: 'POST', crmKey });
     await createAdminAction({ leadId, crmKey, action: 'memory_deleted', adminEmail: req.admin?.email });
@@ -267,8 +264,8 @@ router.post('/:id/delete-memory', async (req, res, next) => {
 router.post('/:id/delete-conversation', async (req, res, next) => {
   try {
     const leadId = requireUuid(req.params.id);
-    const crmKey = getCrmKey(req);
-    const result = await resetLeadConversation(leadId, crmKey, req.admin?.email);
+    const result = await resetLeadConversation(leadId, req.admin?.email);
+    const crmKey = result.lead.crm_key || 'holograficas';
     const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/delete-memory`, { method: 'POST', crmKey });
     res.json({ ...result, chatbot });
   } catch (error) {
@@ -279,8 +276,8 @@ router.post('/:id/delete-conversation', async (req, res, next) => {
 router.post('/:id/mark-paid', async (req, res, next) => {
   try {
     const leadId = requireUuid(req.params.id);
-    const crmKey = getCrmKey(req);
-    const result = await markLeadPaid(leadId, crmKey, req.admin?.email);
+    const result = await markLeadPaid(leadId, req.admin?.email);
+    const crmKey = result.lead.crm_key || 'holograficas';
     const chatbot = await optionalChatbotRequest(`/api/leads/${leadId}/mark-paid`, { method: 'POST', crmKey });
     res.json({ ...result, chatbot });
   } catch (error) {
@@ -291,16 +288,22 @@ router.post('/:id/mark-paid', async (req, res, next) => {
 router.post('/:id/send-hotmart-link', async (req, res, next) => {
   try {
     const leadId = requireUuid(req.params.id);
-    const crmKey = getCrmKey(req);
+    const context = await getLeadContext(leadId);
+    const crmKey = context.crm_key || 'holograficas';
     const settings = await getSettings();
-    if (!settings.hotmart_link) {
+    const hotmartLink = context.product_interest === 'neurotrauma'
+      ? settings.neurotrauma_hotmart_link || settings.hotmart_link
+      : context.product_interest === 'holograficas'
+        ? settings.holograficas_hotmart_link || settings.hotmart_link
+        : settings.hotmart_link;
+    if (!hotmartLink) {
       return res.status(400).json({ error: 'HOTMART_LINK_REQUIRED' });
     }
 
     const chatbot = await chatbotRequest(`/api/leads/${leadId}/send-hotmart-link`, {
       method: 'POST',
       crmKey,
-      body: { hotmart_link: settings.hotmart_link }
+      body: { hotmart_link: hotmartLink, product_interest: context.product_interest }
     });
     assertChatbotSuccess(chatbot, 'Hotmart link was not sent by chatbot');
 
@@ -308,13 +311,13 @@ router.post('/:id/send-hotmart-link', async (req, res, next) => {
       hotmart_link_sent: true,
       hotmart_link_sent_at: new Date().toISOString(),
       funnel_stage: 'link_pago_enviado'
-    }, crmKey);
+    });
 
     await createAdminAction({
       leadId,
       crmKey,
       action: 'hotmart_link_sent',
-      details: { hotmart_link: settings.hotmart_link },
+      details: { hotmart_link: hotmartLink, product_interest: context.product_interest },
       adminEmail: req.admin?.email
     });
 
@@ -329,7 +332,6 @@ router.post('/:id/send-message', async (req, res, next) => {
     const result = await sendManualLeadMessage({
       leadId: req.params.id,
       message: req.body?.message,
-      crmKey: getCrmKey(req),
       adminEmail: req.admin?.email
     });
     res.json(result);
@@ -338,7 +340,18 @@ router.post('/:id/send-message', async (req, res, next) => {
   }
 });
 
-async function updateLeadFlags(leadId, updates, crmKey = 'holograficas') {
+async function getLeadContext(leadId) {
+  const id = requireUuid(leadId);
+  const result = await query(`SELECT id, crm_key, product_interest FROM leads WHERE id::TEXT = $1 LIMIT 1`, [id]);
+  if (result.rowCount === 0) {
+    const error = new Error('LEAD_NOT_FOUND');
+    error.status = 404;
+    throw error;
+  }
+  return result.rows[0];
+}
+
+async function updateLeadFlags(leadId, updates) {
   const id = requireUuid(leadId);
   const entries = Object.entries(updates);
   const assignments = entries.map(([key], index) => `${key} = $${index + 1}`);
@@ -348,9 +361,9 @@ async function updateLeadFlags(leadId, updates, crmKey = 'holograficas') {
   const result = await query(
     `UPDATE leads
      SET ${assignments.join(', ')}, updated_at = NOW()
-     WHERE id::TEXT = $${values.length} AND ${crmWhere()} = $${values.length + 1}
+     WHERE id::TEXT = $${values.length}
      RETURNING *`,
-    [...values, crmKey]
+    values
   );
 
   if (result.rowCount === 0) {
@@ -362,30 +375,31 @@ async function updateLeadFlags(leadId, updates, crmKey = 'holograficas') {
   return result.rows[0];
 }
 
-async function resetLeadConversation(leadId, crmKey, adminEmail) {
+async function resetLeadConversation(leadId, adminEmail) {
   const id = requireUuid(leadId);
 
   return withTransaction(async (client) => {
-    const leadCheck = await client.query(`SELECT id FROM leads WHERE id::TEXT = $1 AND ${crmWhere()} = $2 LIMIT 1`, [id, crmKey]);
+    const leadCheck = await client.query(`SELECT id, crm_key FROM leads WHERE id::TEXT = $1 LIMIT 1`, [id]);
     if (leadCheck.rowCount === 0) {
       const error = new Error('LEAD_NOT_FOUND');
       error.status = 404;
       throw error;
     }
 
-    const memoryDelete = await client.query(`DELETE FROM conversation_memory WHERE lead_id::TEXT = $1 AND ${crmWhere()} = $2 RETURNING id`, [id, crmKey]);
+    const crmKey = leadCheck.rows[0].crm_key || 'holograficas';
+    const memoryDelete = await client.query(`DELETE FROM conversation_memory WHERE lead_id::TEXT = $1 RETURNING id`, [id]);
     const messageDelete = await client.query(
       `DELETE FROM messages
-       WHERE (lead_id::TEXT = $1 AND ${crmWhere()} = $2)
+       WHERE lead_id::TEXT = $1
           OR conversation_id::TEXT IN (
             SELECT id::TEXT
             FROM conversations
-            WHERE lead_id::TEXT = $1 AND ${crmWhere()} = $2
+            WHERE lead_id::TEXT = $1
           )
        RETURNING id`,
-      [id, crmKey]
+      [id]
     );
-    const conversationDelete = await client.query(`DELETE FROM conversations WHERE lead_id::TEXT = $1 AND ${crmWhere()} = $2 RETURNING id`, [id, crmKey]);
+    const conversationDelete = await client.query(`DELETE FROM conversations WHERE lead_id::TEXT = $1 RETURNING id`, [id]);
 
     const leadUpdate = await client.query(
       `UPDATE leads
@@ -398,9 +412,9 @@ async function resetLeadConversation(leadId, crmKey, adminEmail) {
            bot_paused = FALSE,
            funnel_stage = 'inicio',
            updated_at = NOW()
-       WHERE id::TEXT = $1 AND ${crmWhere()} = $2
+       WHERE id::TEXT = $1
        RETURNING *`,
-      [id, crmKey]
+      [id]
     );
 
     await client.query(
@@ -429,9 +443,16 @@ async function resetLeadConversation(leadId, crmKey, adminEmail) {
   });
 }
 
-async function markLeadPaid(leadId, crmKey, adminEmail) {
+async function markLeadPaid(leadId, adminEmail) {
   const id = requireUuid(leadId);
   return withTransaction(async (client) => {
+    const leadCheck = await client.query(`SELECT id, crm_key FROM leads WHERE id::TEXT = $1 LIMIT 1`, [id]);
+    if (leadCheck.rowCount === 0) {
+      const error = new Error('LEAD_NOT_FOUND');
+      error.status = 404;
+      throw error;
+    }
+    const crmKey = leadCheck.rows[0].crm_key || 'holograficas';
     const paymentUpdate = await client.query(
       `UPDATE payments
        SET status = 'confirmed',
@@ -441,12 +462,12 @@ async function markLeadPaid(leadId, crmKey, adminEmail) {
        WHERE id::TEXT = (
          SELECT id::TEXT
          FROM payments
-         WHERE lead_id::TEXT = $1 AND ${crmWhere()} = $2
+         WHERE lead_id::TEXT = $1
          ORDER BY created_at DESC NULLS LAST, id DESC
          LIMIT 1
        )
        RETURNING *`,
-      [id, crmKey]
+      [id]
     );
 
     let payment = paymentUpdate.rows[0];
@@ -466,9 +487,9 @@ async function markLeadPaid(leadId, crmKey, adminEmail) {
            lead_status = 'comprador',
            funnel_stage = 'onboarding',
            updated_at = NOW()
-       WHERE id::TEXT = $1 AND ${crmWhere()} = $2
+       WHERE id::TEXT = $1
        RETURNING *`,
-      [id, crmKey]
+      [id]
     );
 
     if (leadUpdate.rowCount === 0) {
@@ -487,9 +508,9 @@ async function markLeadPaid(leadId, crmKey, adminEmail) {
   });
 }
 
-function buildLeadFilters(filters, crmKey) {
-  const where = [`${crmWhere()} = $1`];
-  const values = [crmKey];
+function buildLeadFilters(filters) {
+  const where = [];
+  const values = [];
   const add = (sql, value) => {
     values.push(value);
     where.push(sql.replace('?', `$${values.length}`));
@@ -511,6 +532,7 @@ function buildLeadFilters(filters, crmKey) {
   if (filters.lead_status) add('lead_status = ?', String(filters.lead_status));
   if (filters.funnel_stage) add('funnel_stage = ?', String(filters.funnel_stage));
   if (filters.main_pain) add('main_pain ILIKE ?', `%${String(filters.main_pain).trim()}%`);
+  if (filters.product_interest) add('product_interest = ?', normalizeProductInterest(filters.product_interest));
   if (filters.payment_status) add('payment_status = ?', String(filters.payment_status));
   if (filters.hotmart_link_sent !== undefined && filters.hotmart_link_sent !== '') add('hotmart_link_sent = ?', parseBoolean(filters.hotmart_link_sent));
   if (filters.bot_paused !== undefined && filters.bot_paused !== '') add('bot_paused = ?', parseBoolean(filters.bot_paused));
@@ -563,6 +585,16 @@ function validateLeadUpdates(updates) {
     const error = new Error('INVALID_FUNNEL_STAGE');
     error.status = 400;
     throw error;
+  }
+
+  if (updates.product_interest && !PRODUCT_INTERESTS.has(normalizeProductInterest(updates.product_interest))) {
+    const error = new Error('INVALID_PRODUCT_INTEREST');
+    error.status = 400;
+    throw error;
+  }
+
+  if (updates.product_interest) {
+    updates.product_interest = normalizeProductInterest(updates.product_interest);
   }
 }
 

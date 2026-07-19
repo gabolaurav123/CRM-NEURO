@@ -36,7 +36,7 @@ app.use(express.json({ limit: '1mb' }));
 app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
-    product: process.env.PRODUCT_NAME || 'Neurotraumas(TM)'
+    product: process.env.PRODUCT_NAME || 'Gimnasio del Cerebro'
   });
 });
 
@@ -86,7 +86,7 @@ ensureDatabaseSchema()
   })
   .finally(() => {
     app.listen(port, () => {
-      console.log(`[server] CRM Neuro listening on port ${port}`);
+      console.log(`[server] Gimnasio del Cerebro listening on port ${port}`);
       startWhatsappKeepAlive();
     });
   });

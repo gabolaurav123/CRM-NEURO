@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Link2, MessageCircle, RefreshCw, UserRound } from 'lucide-react';
 import { leadsApi } from '../api/leads';
 import { paymentsApi } from '../api/payments';
@@ -8,9 +8,12 @@ import PaymentStatusBadge from '../components/PaymentStatusBadge';
 import { PAYMENT_STATUSES } from '../utils/constants';
 import { formatDate } from '../utils/formatDate';
 import { getLeadPhoneDisplay } from '../utils/formatPhone';
+import ProductInterestBadge from '../components/ProductInterestBadge';
+import { PRODUCT_OPTIONS } from '../utils/products';
 
 export default function Payments() {
-  const [filters, setFilters] = useState({ status: '', q: '' });
+  const [searchParams] = useSearchParams();
+  const [filters, setFilters] = useState({ status: searchParams.get('status') || '', product_interest: '', q: '' });
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -79,6 +82,10 @@ export default function Payments() {
             </option>
           ))}
         </select>
+        <select value={filters.product_interest} onChange={(event) => setFilters((current) => ({ ...current, product_interest: event.target.value }))} className="h-10 rounded-lg border border-line bg-slate-50 px-3 text-sm outline-none">
+          <option value="">Todos los productos</option>
+          {PRODUCT_OPTIONS.map((product) => <option key={product.value} value={product.value}>{product.label}</option>)}
+        </select>
         <button className="rounded-lg bg-ink px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Filtrar</button>
       </form>
 
@@ -89,6 +96,7 @@ export default function Payments() {
               <tr>
                 <Th>Lead</Th>
                 <Th>Telefono / WhatsApp ID</Th>
+                <Th>Producto</Th>
                 <Th>Estado</Th>
                 <Th>Monto</Th>
                 <Th>Moneda</Th>
@@ -103,17 +111,18 @@ export default function Payments() {
             <tbody className="divide-y divide-line">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-slate-500">Cargando pagos...</td>
+                  <td colSpan={12} className="px-4 py-8 text-center text-slate-500">Cargando pagos...</td>
                 </tr>
               ) : payments.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-slate-500">No hay pagos.</td>
+                  <td colSpan={12} className="px-4 py-8 text-center text-slate-500">No hay pagos.</td>
                 </tr>
               ) : (
                 payments.map((payment) => (
                   <tr key={payment.id} className="hover:bg-slate-50">
                     <Td>{payment.lead_name || 'Sin lead'}</Td>
                     <Td><PhoneCell payment={payment} /></Td>
+                    <Td><ProductInterestBadge lead={payment} /></Td>
                     <Td><PaymentStatusBadge status={payment.status} /></Td>
                     <Td>{payment.amount ?? '-'}</Td>
                     <Td>{payment.currency || '-'}</Td>

@@ -5,6 +5,7 @@ import LeadStatusBadge from './LeadStatusBadge';
 import PaymentStatusBadge from './PaymentStatusBadge';
 import { formatDate } from '../utils/formatDate';
 import { getLeadPhoneDisplay } from '../utils/formatPhone';
+import ProductInterestBadge from './ProductInterestBadge';
 
 export default function LeadTable({ leads, loading, onAction }) {
   return (
@@ -12,7 +13,7 @@ export default function LeadTable({ leads, loading, onAction }) {
       <div className="overflow-x-auto">
         <table className="min-w-[1760px] w-full border-collapse text-left text-sm">
           <colgroup>
-            {Array.from({ length: 14 }).map((_, index) => <col key={index} />)}
+            {Array.from({ length: 15 }).map((_, index) => <col key={index} />)}
             <col style={{ width: 340 }} />
           </colgroup>
           <thead className="bg-slate-100 text-xs uppercase tracking-[0.08em] text-slate-500">
@@ -23,6 +24,7 @@ export default function LeadTable({ leads, loading, onAction }) {
               <Th>Pais</Th>
               <Th>Ciudad</Th>
               <Th>Usuario</Th>
+              <Th>Producto de interes</Th>
               <Th>Dolor principal</Th>
               <Th>Urgencia</Th>
               <Th>Score</Th>
@@ -37,13 +39,13 @@ export default function LeadTable({ leads, loading, onAction }) {
           <tbody className="divide-y divide-line">
             {loading ? (
               <tr>
-                <td className="px-4 py-8 text-center text-slate-500" colSpan={15}>
+                <td className="px-4 py-8 text-center text-slate-500" colSpan={16}>
                   Cargando leads...
                 </td>
               </tr>
             ) : leads.length === 0 ? (
               <tr>
-                <td className="px-4 py-8 text-center text-slate-500" colSpan={15}>
+                <td className="px-4 py-8 text-center text-slate-500" colSpan={16}>
                   No hay leads con estos filtros.
                 </td>
               </tr>
@@ -61,6 +63,7 @@ export default function LeadTable({ leads, loading, onAction }) {
                   <Td>{lead.country || '-'}</Td>
                   <Td>{lead.city || '-'}</Td>
                   <Td>{lead.username || '-'}</Td>
+                  <Td><ProductInterestBadge lead={lead} /></Td>
                   <Td>{lead.main_pain || '-'}</Td>
                   <Td>{lead.urgency ?? '-'}</Td>
                   <Td>{lead.lead_score ?? '-'}</Td>

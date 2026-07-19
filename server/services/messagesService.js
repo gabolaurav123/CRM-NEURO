@@ -1,9 +1,8 @@
 import { query, withTransaction } from '../db.js';
 import { assertChatbotSuccess, chatbotRequest } from './chatbotClient.js';
-import { crmWhere } from '../utils/crm.js';
 import { requireUuid } from '../utils/ids.js';
 
-export async function sendManualLeadMessage({ leadId, message, crmKey = 'holograficas', adminEmail }) {
+export async function sendManualLeadMessage({ leadId, message, adminEmail }) {
   const id = requireUuid(leadId);
   const text = String(message || '').trim();
 
@@ -13,12 +12,14 @@ export async function sendManualLeadMessage({ leadId, message, crmKey = 'hologra
     throw error;
   }
 
-  const lead = await query(`SELECT * FROM leads WHERE id::TEXT = $1 AND ${crmWhere()} = $2 LIMIT 1`, [id, crmKey]);
+  const lead = await query(`SELECT * FROM leads WHERE id::TEXT = $1 LIMIT 1`, [id]);
   if (lead.rowCount === 0) {
     const error = new Error('LEAD_NOT_FOUND');
     error.status = 404;
     throw error;
   }
+
+  const crmKey = lead.rows[0].crm_key || 'holograficas';
 
   const chatbot = await chatbotRequest(`/api/leads/${id}/send-message`, {
     method: 'POST',
@@ -40,9 +41,9 @@ export async function sendManualLeadMessage({ leadId, message, crmKey = 'hologra
        SET last_bot_message = $2,
            last_contact_at = NOW(),
            updated_at = NOW()
-       WHERE id::TEXT = $1 AND ${crmWhere()} = $3
+       WHERE id::TEXT = $1
        RETURNING *`,
-      [id, text, crmKey]
+      [id, text]
     );
 
     await client.query(

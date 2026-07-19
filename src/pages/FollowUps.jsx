@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Ban, CalendarClock, Pencil, Send, UserRound, X } from 'lucide-react';
 import { followupsApi } from '../api/followups';
 import { formatDate } from '../utils/formatDate';
 import { getLeadPhoneDisplay } from '../utils/formatPhone';
+import ProductInterestBadge from '../components/ProductInterestBadge';
+import { PRODUCT_OPTIONS } from '../utils/products';
 
 const statuses = ['pending', 'sent', 'cancelled', 'failed'];
 
 export default function FollowUps() {
-  const [filters, setFilters] = useState({ status: '', type: '', date_from: '', date_to: '', q: '' });
+  const [searchParams] = useSearchParams();
+  const [filters, setFilters] = useState({ status: searchParams.get('status') || '', product_interest: '', type: '', date_from: '', date_to: '', q: '' });
   const [followups, setFollowups] = useState([]);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ message: '', scheduled_at: '', type: '', status: 'pending' });
@@ -115,6 +118,10 @@ export default function FollowUps() {
             <option key={status} value={status}>{status}</option>
           ))}
         </select>
+        <select value={filters.product_interest} onChange={(event) => setFilters((current) => ({ ...current, product_interest: event.target.value }))} className="h-10 rounded-lg border border-line bg-slate-50 px-3 text-sm outline-none">
+          <option value="">Todos los productos</option>
+          {PRODUCT_OPTIONS.map((product) => <option key={product.value} value={product.value}>{product.label}</option>)}
+        </select>
         <input value={filters.type} onChange={(event) => setFilters((current) => ({ ...current, type: event.target.value }))} placeholder="Tipo" className="h-10 rounded-lg border border-line bg-slate-50 px-3 text-sm outline-none" />
         <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} className="h-10 rounded-lg border border-line bg-slate-50 px-3 text-sm outline-none" />
         <input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} className="h-10 rounded-lg border border-line bg-slate-50 px-3 text-sm outline-none" />
@@ -127,6 +134,7 @@ export default function FollowUps() {
             <colgroup>
               <col style={{ width: 170 }} />
               <col style={{ width: 190 }} />
+              <col style={{ width: 150 }} />
               <col style={{ width: 160 }} />
               <col />
               <col style={{ width: 160 }} />
@@ -138,6 +146,7 @@ export default function FollowUps() {
               <tr>
                 <Th>Lead</Th>
                 <Th>Telefono / WhatsApp ID</Th>
+                <Th>Producto</Th>
                 <Th>Tipo</Th>
                 <Th>Mensaje</Th>
                 <Th>Programado para</Th>
@@ -148,14 +157,15 @@ export default function FollowUps() {
             </thead>
             <tbody className="divide-y divide-line">
               {loading ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-500">Cargando follow-ups...</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">Cargando follow-ups...</td></tr>
               ) : followups.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-500">No hay follow-ups.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No hay follow-ups.</td></tr>
               ) : (
                 followups.map((followup) => (
                   <tr key={followup.id} className="hover:bg-slate-50">
                     <Td>{followup.lead_name || 'Sin lead'}</Td>
                     <Td><PhoneCell followup={followup} /></Td>
+                    <Td><ProductInterestBadge lead={followup} /></Td>
                     <Td>{formatFollowupType(followup.type)}</Td>
                     <Td>
                       <div className="max-w-[430px]">

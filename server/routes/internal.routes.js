@@ -3,6 +3,7 @@ import { activeCrmPayload, getActiveWhatsappCrm, setActiveWhatsappCrm } from '..
 import { withTransaction } from '../db.js';
 import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
 import { LEGACY_CRM_KEY, normalizeCrmKey } from '../utils/crm.js';
+import { normalizeProductInterest } from '../utils/products.js';
 
 const router = Router();
 
@@ -56,7 +57,7 @@ router.post('/leads/upsert', async (req, res, next) => {
 });
 
 async function upsertLead(crmKey, body) {
-  const payload = normalizeLeadPayload(body);
+  const payload = normalizeLeadPayload(body, crmKey);
 
   return withTransaction(async (client) => {
     const existing = await findExistingLead(client, crmKey, payload);
@@ -80,8 +81,11 @@ async function upsertLead(crmKey, body) {
       return updated.rows[0];
     }
 
-    const columns = ['crm_key', ...entries.map(([key]) => key), 'created_at', 'updated_at', 'first_contact_at', 'last_contact_at'];
-    const values = [crmKey, ...entries.map(([, value]) => value)];
+    const insertEntries = entries.some(([key]) => key === 'product_interest')
+      ? entries
+      : [...entries, ['product_interest', normalizeProductInterest('', crmKey)]];
+    const columns = ['crm_key', ...insertEntries.map(([key]) => key), 'created_at', 'updated_at', 'first_contact_at', 'last_contact_at'];
+    const values = [crmKey, ...insertEntries.map(([, value]) => value)];
     const placeholders = values.map((_, index) => `$${index + 1}`);
     const inserted = await client.query(
       `INSERT INTO leads (${columns.join(', ')})
@@ -123,8 +127,9 @@ async function findExistingLead(client, crmKey, payload) {
   return result.rows[0] || null;
 }
 
-function normalizeLeadPayload(body) {
+function normalizeLeadPayload(body, crmKey) {
   const rawId = value(body.id || body.lead_id);
+  const rawProductInterest = body.product_interest || body.productInterest || body.product || body.producto || body.interested_product;
   return {
     id: isUuid(rawId) ? rawId : undefined,
     phone: value(body.phone || body.telefono || body.celular || body.cellphone),
@@ -138,6 +143,9 @@ function normalizeLeadPayload(body) {
     username: value(body.username || body.usuario),
     channel: value(body.channel || body.canal || 'whatsapp'),
     source_keyword: value(body.source_keyword || body.sourceKeyword),
+    product_interest: rawProductInterest
+      ? normalizeProductInterest(rawProductInterest, body.crm_key || body.crmKey || crmKey)
+      : undefined,
     main_pain: value(body.main_pain || body.mainPain || body.dolor),
     emotional_response: value(body.emotional_response || body.emotionalResponse),
     problem_duration: value(body.problem_duration || body.problemDuration),

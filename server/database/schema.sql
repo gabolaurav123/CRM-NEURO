@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS leads (
   city TEXT,
   username TEXT,
   source_keyword TEXT,
+  product_interest TEXT DEFAULT 'sin_definir',
   main_pain TEXT,
   emotional_response TEXT,
   problem_duration TEXT,
@@ -55,6 +56,7 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS country TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS city TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS username TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS source_keyword TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS product_interest TEXT DEFAULT 'sin_definir';
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS main_pain TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS emotional_response TEXT;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS problem_duration TEXT;
@@ -263,6 +265,19 @@ UPDATE payments SET crm_key = 'neurotraumas' WHERE crm_key IS NULL;
 UPDATE followups SET crm_key = 'neurotraumas' WHERE crm_key IS NULL;
 UPDATE admin_actions SET crm_key = 'neurotraumas' WHERE crm_key IS NULL;
 
+UPDATE leads
+SET product_interest = CASE
+  WHEN LOWER(COALESCE(product_interest, '')) IN ('neurotrauma', 'neurotraumas', 'neuro') THEN 'neurotrauma'
+  WHEN LOWER(COALESCE(product_interest, '')) IN ('holograficas', 'holografica') THEN 'holograficas'
+  WHEN LOWER(COALESCE(product_interest, '')) IN ('ambos', 'ambos_productos') THEN 'ambos'
+  WHEN crm_key = 'neurotraumas' THEN 'neurotrauma'
+  WHEN crm_key = 'holograficas' THEN 'holograficas'
+  ELSE 'sin_definir'
+END
+WHERE product_interest IS NULL
+   OR product_interest = ''
+   OR product_interest NOT IN ('neurotrauma', 'holograficas', 'ambos', 'sin_definir');
+
 INSERT INTO bot_settings (key, value, value_type, updated_at)
 VALUES
   ('active_crm_key', 'holograficas', 'string', NOW()),
@@ -281,6 +296,7 @@ ON CONFLICT (key) DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads (lead_status);
 CREATE INDEX IF NOT EXISTS idx_leads_crm_key ON leads (crm_key);
+CREATE INDEX IF NOT EXISTS idx_leads_product_interest ON leads (product_interest);
 CREATE INDEX IF NOT EXISTS idx_leads_funnel ON leads (funnel_stage);
 CREATE INDEX IF NOT EXISTS idx_leads_payment ON leads (payment_status);
 CREATE INDEX IF NOT EXISTS idx_leads_last_contact ON leads (last_contact_at);

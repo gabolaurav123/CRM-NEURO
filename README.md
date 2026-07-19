@@ -1,6 +1,15 @@
-# CRM Neurotraumas
+# Gimnasio del Cerebro — CRM
 
-CRM web privado para administrar leads, conversaciones, pagos, follow-ups, configuracion visible del bot y vinculacion de WhatsApp por QR. Es un solo panel y un solo enlace; despues del login permite elegir la operacion interna `Neurotraumas` o `Holograficas`.
+CRM web privado y unificado para administrar leads, conversaciones, pagos, seguimientos, configuracion visible del bot y vinculacion de WhatsApp por QR. Todos los contactos aparecen en un solo panel bajo la marca **Gimnasio del Cerebro**.
+
+Cada lead conserva un `product_interest` independiente con uno de estos valores:
+
+- `neurotrauma`
+- `holograficas`
+- `ambos`
+- `sin_definir`
+
+El campo historico `crm_key` se mantiene para compatibilidad con el chatbot y para migrar datos anteriores, pero ya no divide ni oculta registros dentro del panel.
 
 El CRM usa React + Vite + TailwindCSS en frontend y Express + PostgreSQL en backend. Express sirve el `dist` generado por Vite en produccion.
 
@@ -23,8 +32,12 @@ WHATSAPP_KEEPALIVE_ENABLED=true
 WHATSAPP_KEEPALIVE_INTERVAL_MS=120000
 WHATSAPP_KEEPALIVE_RESTART_COOLDOWN_MS=300000
 WHATSAPP_KEEPALIVE_PROACTIVE_RESTART_MS=14400000
-PRODUCT_NAME=Neurotraumas(TM)
+PRODUCT_NAME=Gimnasio del Cerebro
 HOTMART_LINK=https://pay.hotmart.com/T103515864E
+NEUROTRAUMA_PRICE=360
+NEUROTRAUMA_HOTMART_LINK=https://pay.hotmart.com/T103515864E
+HOLOGRAFICAS_PRICE=
+HOLOGRAFICAS_HOTMART_LINK=
 TIMEZONE=America/La_Paz
 ```
 
@@ -40,27 +53,12 @@ x-admin-api-key: ADMIN_API_KEY
 
 El servidor del CRM tambien ejecuta un watchdog de WhatsApp. Cada `WHATSAPP_KEEPALIVE_INTERVAL_MS` consulta el estado real del chatbot; si antes habia una sesion conectada y el chatbot reporta `disconnected`, `qr_pending` o `initializing`, el CRM intenta reactivar la sesion con `/api/whatsapp/restart`. `WHATSAPP_KEEPALIVE_RESTART_COOLDOWN_MS` evita reinicios repetidos. Para evitar sesiones dormidas aunque el chatbot reporte `connected`, `WHATSAPP_KEEPALIVE_PROACTIVE_RESTART_MS` reinicia preventivamente el cliente preservando la sesion; usa `0` para desactivarlo. El timeout de cada llamada al chatbot se controla con `CHATBOT_REQUEST_TIMEOUT_MS`.
 
-Cuando se elige un CRM, el frontend envia `x-crm-key` al backend y el backend lo reenvia al chatbot. Valores actuales:
+Para compatibilidad, el backend puede reenviar `x-crm-key` al chatbot. Valores historicos:
 
 - `neurotraumas`
 - `holograficas`
 
-El chatbot tambien puede consultar el CRM activo para WhatsApp con:
-
-```http
-GET /api/internal/active-crm
-x-admin-api-key: ADMIN_API_KEY
-```
-
-Respuesta esperada:
-
-```json
-{ "crm_key": "holograficas", "crmKey": "holograficas", "active_crm_key": "holograficas", "whatsapp_active_crm_key": "holograficas" }
-```
-
-Cuando se elige una operacion en `/select-crm`, el CRM guarda `bot_settings.whatsapp_active_crm_key` en PostgreSQL. Ese valor queda activo aunque cierres la pagina o nadie tenga el panel abierto. Generar o reiniciar el QR desde una operacion tambien actualiza ese valor. El chatbot debe usar ese valor al insertar `leads`, `messages`, `conversations`, `conversation_memory`, `followups` y `payments`.
-
-Como proteccion adicional, si el chatbot inserta por error en el CRM contrario al activo, el CRM mueve esos leads y sus mensajes hacia la operacion activa. Esto aplica en ambos sentidos: de Neurotraumas a Holograficas y de Holograficas a Neurotraumas. Solo se mueven registros creados desde la activacion de la operacion activa, para no arrastrar historicos.
+El chatbot debe enviar `product_interest` al crear o actualizar leads. Si no lo envia, el CRM lo infiere del `crm_key` historico y, si tampoco existe, lo marca como `sin_definir` para revision comercial.
 
 Para guardar datos estructurados desde el chatbot, usa:
 
@@ -79,6 +77,7 @@ Ejemplo:
   "email": "maria@example.com",
   "country": "Bolivia",
   "city": "La Paz",
+  "product_interest": "neurotrauma",
   "whatsapp_id": "59170000000@s.whatsapp.net"
 }
 ```
@@ -105,12 +104,13 @@ Configura:
 
 Para usuarios adicionales usa `ADMIN_EXTRA_USERS` con formato `usuario:hashBcrypt`, separado por comas si hay mas de uno. El usuario `NEUROTRAUMA` queda configurado con hash bcrypt en `.env.example`; en Seenode debes crear esa misma variable de entorno para habilitarlo.
 
-## Operaciones internas
+## Productos
 
-- Neurotraumas: operacion actual con el logo NTR y datos existentes.
-- Holograficas: operacion dentro del mismo panel, con leads, conversaciones, pagos y follow-ups filtrados por `crm_key`.
+- Neurotrauma.
+- Holograficas.
+- Ambos productos cuando el lead muestra interes compartido.
 
-WhatsApp funciona como una sesion compartida hacia el mismo chatbot y el mismo numero. Si se desvincula o se vincula desde un CRM, el estado de WhatsApp queda reflejado en el panel, y el backend informa al chatbot cual CRM esta activo mediante `x-crm-key`.
+WhatsApp funciona como una sesion compartida hacia el mismo chatbot y el mismo numero. Su estado se refleja de forma global en el panel.
 Para mensajes entrantes, el chatbot debe guardar usando el `whatsapp_active_crm_key` vigente. Si este valor es `holograficas`, los nuevos leads y mensajes entrantes deben escribirse con `crm_key='holograficas'`.
 
 ## Base de datos compartida

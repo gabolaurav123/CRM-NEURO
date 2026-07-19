@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react';
 import { whatsappApi } from '../api/whatsapp';
-import { getSelectedCrm } from '../api/client';
 import ConfirmModal from '../components/ConfirmModal';
 import QRCard from '../components/QRCard';
-import { getCrmByKey } from '../utils/crm';
 
 export default function WhatsAppQR() {
-  const crm = getCrmByKey(getSelectedCrm());
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -94,7 +91,7 @@ export default function WhatsAppQR() {
       {error ? <div className="rounded-lg bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
 
       <QRCard
-        crm={crm}
+        crm={{ name: 'Gimnasio del Cerebro' }}
         status={status}
         loading={loading}
         onGenerate={generateQr}

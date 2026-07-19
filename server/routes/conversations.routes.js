@@ -1,17 +1,14 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { sendManualLeadMessage } from '../services/messagesService.js';
-import { syncRecentWhatsappRowsToActiveCrm } from '../services/crmSyncService.js';
-import { crmWhere, getCrmKey } from '../utils/crm.js';
 import { requireUuid } from '../utils/ids.js';
+import { normalizeProductInterest } from '../utils/products.js';
 
 const router = Router();
 
 router.get('/', async (req, res, next) => {
   try {
-    const crmKey = getCrmKey(req);
-    await syncRecentWhatsappRowsToActiveCrm({ requestedCrmKey: crmKey });
-    const { whereSql, values } = buildConversationFilters(req.query, crmKey);
+    const { whereSql, values } = buildConversationFilters(req.query);
     const result = await query(
       `WITH last_messages AS (
          SELECT DISTINCT ON (lead_id::TEXT)
@@ -21,13 +18,13 @@ router.get('/', async (req, res, next) => {
            from_me,
            created_at
          FROM messages
-         WHERE lead_id IS NOT NULL AND ${crmWhere()} = $1
+         WHERE lead_id IS NOT NULL
          ORDER BY lead_id::TEXT, created_at DESC
        ),
        conversation_leads AS (
          SELECT DISTINCT lead_id::TEXT AS lead_id
          FROM conversations
-         WHERE lead_id IS NOT NULL AND ${crmWhere()} = $1
+         WHERE lead_id IS NOT NULL
        )
        SELECT
          l.id AS lead_id,
@@ -37,6 +34,8 @@ router.get('/', async (req, res, next) => {
          l.whatsapp_lid,
          l.display_phone,
          l.email,
+         l.product_interest,
+         l.crm_key,
          l.lead_status,
          l.funnel_stage,
          l.bot_paused,
@@ -64,27 +63,20 @@ router.get('/', async (req, res, next) => {
 router.get('/:leadId', async (req, res, next) => {
   try {
     const leadId = requireUuid(req.params.leadId);
-    const crmKey = getCrmKey(req);
-    const lead = await query(`SELECT * FROM leads WHERE id::TEXT = $1 AND ${crmWhere()} = $2 LIMIT 1`, [leadId, crmKey]);
+    const lead = await query(`SELECT * FROM leads WHERE id::TEXT = $1 LIMIT 1`, [leadId]);
 
-    if (lead.rowCount === 0) {
-      return res.status(404).json({ error: 'LEAD_NOT_FOUND' });
-    }
+    if (lead.rowCount === 0) return res.status(404).json({ error: 'LEAD_NOT_FOUND' });
 
     const messages = await query(
       `SELECT id, lead_id, conversation_id, direction, role,
               COALESCE(body, message_text, content, '') AS body,
               from_me, metadata, created_at
        FROM messages
-       WHERE (lead_id::TEXT = $1 AND ${crmWhere()} = $2)
-          OR conversation_id::TEXT IN (
-            SELECT id::TEXT
-            FROM conversations
-            WHERE lead_id::TEXT = $1 AND ${crmWhere()} = $2
-          )
+       WHERE lead_id::TEXT = $1
+          OR conversation_id::TEXT IN (SELECT id::TEXT FROM conversations WHERE lead_id::TEXT = $1)
        ORDER BY created_at ASC
        LIMIT 500`,
-      [leadId, crmKey]
+      [leadId]
     );
 
     res.json({ lead: lead.rows[0], messages: messages.rows });
@@ -98,7 +90,6 @@ router.post('/:leadId/send-message', async (req, res, next) => {
     const result = await sendManualLeadMessage({
       leadId: req.params.leadId,
       message: req.body?.message,
-      crmKey: getCrmKey(req),
       adminEmail: req.admin?.email
     });
     res.json(result);
@@ -107,35 +98,19 @@ router.post('/:leadId/send-message', async (req, res, next) => {
   }
 });
 
-function buildConversationFilters(filters, crmKey) {
-  const where = [
-    `${crmWhere('l')} = $1`,
-    `(lm.lead_id IS NOT NULL OR cl.lead_id IS NOT NULL OR l.last_user_message IS NOT NULL OR l.last_bot_message IS NOT NULL OR l.last_contact_at IS NOT NULL)`
-  ];
-  const values = [crmKey];
-  const add = (sql, value) => {
-    values.push(value);
-    where.push(sql.replace('?', `$${values.length}`));
-  };
+function buildConversationFilters(filters) {
+  const where = ['(lm.lead_id IS NOT NULL OR cl.lead_id IS NOT NULL OR l.last_user_message IS NOT NULL OR l.last_bot_message IS NOT NULL OR l.last_contact_at IS NOT NULL)'];
+  const values = [];
 
-  if (filters.status === 'active') {
-    where.push(`COALESCE(lm.created_at, l.last_contact_at, l.updated_at, l.created_at) >= NOW() - INTERVAL '24 hours'`);
-  }
+  if (filters.status === 'active') where.push(`COALESCE(lm.created_at, l.last_contact_at, l.updated_at, l.created_at) >= NOW() - INTERVAL '24 hours'`);
+  if (filters.status === 'expired') where.push(`l.memory_expires_at IS NOT NULL AND l.memory_expires_at < NOW()`);
+  if (filters.status === 'human') where.push('l.human_takeover = TRUE');
+  if (filters.status === 'bot_paused') where.push('l.bot_paused = TRUE');
+  if (filters.status === 'unanswered') where.push(`(lm.direction = 'inbound' OR lm.from_me = FALSE)`);
 
-  if (filters.status === 'expired') {
-    where.push(`l.memory_expires_at IS NOT NULL AND l.memory_expires_at < NOW()`);
-  }
-
-  if (filters.status === 'human') {
-    where.push('l.human_takeover = TRUE');
-  }
-
-  if (filters.status === 'bot_paused') {
-    where.push('l.bot_paused = TRUE');
-  }
-
-  if (filters.status === 'unanswered') {
-    where.push(`(lm.direction = 'inbound' OR lm.from_me = FALSE)`);
+  if (filters.product_interest) {
+    values.push(normalizeProductInterest(filters.product_interest));
+    where.push(`l.product_interest = $${values.length}`);
   }
 
   if (filters.q) {
@@ -143,10 +118,7 @@ function buildConversationFilters(filters, crmKey) {
     where.push(`(l.name ILIKE $${values.length} OR l.phone ILIKE $${values.length} OR l.email ILIKE $${values.length} OR l.country ILIKE $${values.length} OR l.city ILIKE $${values.length} OR l.username ILIKE $${values.length} OR l.whatsapp_id ILIKE $${values.length} OR l.whatsapp_lid ILIKE $${values.length} OR l.display_phone ILIKE $${values.length})`);
   }
 
-  return {
-    whereSql: where.length ? `WHERE ${where.join(' AND ')}` : '',
-    values
-  };
+  return { whereSql: `WHERE ${where.join(' AND ')}`, values };
 }
 
 export default router;

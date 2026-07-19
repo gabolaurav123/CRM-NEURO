@@ -12,8 +12,10 @@ import { FUNNEL_STAGES, LEAD_STATUSES, PAYMENT_STATUSES } from '../utils/constan
 import { formatDate } from '../utils/formatDate';
 import { formatLeadPhone, getLeadPhoneDisplay, stripWhatsappSuffix } from '../utils/formatPhone';
 import { isUuid } from '../utils/ids';
+import ProductInterestBadge from '../components/ProductInterestBadge';
+import { PRODUCT_OPTIONS, getProductInterest, getProductLabel } from '../utils/products';
 
-const editableKeys = ['name', 'phone', 'email', 'country', 'city', 'username', 'main_pain', 'urgency', 'lead_score', 'lead_status', 'funnel_stage', 'main_objection', 'payment_status'];
+const editableKeys = ['name', 'phone', 'email', 'country', 'city', 'username', 'product_interest', 'main_pain', 'urgency', 'lead_score', 'lead_status', 'funnel_stage', 'main_objection', 'payment_status'];
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -42,7 +44,7 @@ export default function LeadDetail() {
     try {
       const data = await leadsApi.get(id);
       setPayload(data);
-      setForm(Object.fromEntries(editableKeys.map((key) => [key, data.lead?.[key] ?? ''])));
+      setForm(Object.fromEntries(editableKeys.map((key) => [key, key === 'product_interest' ? getProductInterest(data.lead || {}) : data.lead?.[key] ?? ''])));
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -155,6 +157,7 @@ export default function LeadDetail() {
           <LeadStatusBadge status={lead?.lead_status} />
           <FunnelStageBadge stage={lead?.funnel_stage} />
           <PaymentStatusBadge status={lead?.payment_status} />
+          <ProductInterestBadge lead={lead} />
         </div>
       </div>
 
@@ -176,6 +179,7 @@ export default function LeadDetail() {
                 ['Usuario', lead?.username],
                 ['Canal', lead?.channel],
                 ['Palabra clave', lead?.source_keyword],
+                ['Producto de interes', getProductLabel(getProductInterest(lead))],
                 ['Fecha de ingreso', formatDate(lead?.created_at)],
                 ['Ultimo contacto', formatDate(lead?.last_contact_at)]
               ]}
@@ -239,6 +243,7 @@ export default function LeadDetail() {
               <TextInput label="Pais" value={form.country} onChange={(value) => setFormValue('country', value, setForm)} />
               <TextInput label="Ciudad" value={form.city} onChange={(value) => setFormValue('city', value, setForm)} />
               <TextInput label="Usuario" value={form.username} onChange={(value) => setFormValue('username', value, setForm)} />
+              <SelectInput label="Producto de interes" value={form.product_interest} options={PRODUCT_OPTIONS.map((option) => option.value)} labels={Object.fromEntries(PRODUCT_OPTIONS.map((option) => [option.value, option.label]))} onChange={(value) => setFormValue('product_interest', value, setForm)} />
               <TextInput label="Dolor principal" value={form.main_pain} onChange={(value) => setFormValue('main_pain', value, setForm)} />
               <div className="grid grid-cols-2 gap-3">
                 <TextInput label="Urgencia" type="number" value={form.urgency} onChange={(value) => setFormValue('urgency', value, setForm)} />
@@ -329,14 +334,14 @@ function TextInput({ label, value, onChange, type = 'text' }) {
   );
 }
 
-function SelectInput({ label, value, options, onChange }) {
+function SelectInput({ label, value, options, labels = {}, onChange }) {
   return (
     <label>
       <span className="text-xs font-bold text-slate-600">{label}</span>
       <select value={value || ''} onChange={(event) => onChange(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-line bg-slate-50 px-3 text-sm outline-none">
         {options.map((option) => (
           <option key={option} value={option}>
-            {option}
+            {labels[option] || option}
           </option>
         ))}
       </select>
