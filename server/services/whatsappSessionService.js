@@ -147,7 +147,11 @@ async function proactiveRestartIfDue(crmKey) {
   if (!proactiveRestartMs) return null;
 
   const now = Date.now();
-  if (lastProactiveRestartAt && now - lastProactiveRestartAt < proactiveRestartMs) return null;
+  if (!lastProactiveRestartAt) {
+    lastProactiveRestartAt = now;
+    return null;
+  }
+  if (now - lastProactiveRestartAt < proactiveRestartMs) return null;
 
   lastProactiveRestartAt = now;
   const status = await restartWhatsappSession(crmKey, 'proactive_keepalive_restart');
